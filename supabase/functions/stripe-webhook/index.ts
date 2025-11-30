@@ -42,8 +42,10 @@ serve(async (req) => {
         Stripe.createSubtleCryptoProvider()
       );
     } catch (err) {
-      console.error(`Webhook signature verification failed: ${err.message}`);
-      return new Response(`Webhook Error: ${err.message}`, { status: 400 });
+      const message =
+        err instanceof Error ? err.message : JSON.stringify(err);
+      console.error(`Webhook signature verification failed: ${message}`);
+      return new Response(`Webhook Error: ${message}`, { status: 400 });
     }
 
     if (event.type === "checkout.session.completed") {
@@ -81,8 +83,13 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("Webhook handler error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : JSON.stringify(error);
     return new Response(
-      JSON.stringify({ error: "Internal Server Error", details: error.message }),
+      JSON.stringify({
+        error: "Internal Server Error",
+        details: errorMessage,
+      }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
