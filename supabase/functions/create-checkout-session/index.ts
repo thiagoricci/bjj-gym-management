@@ -24,7 +24,10 @@ serve(async (req: Request) => {
     });
   }
 
+  let debugStage = "start";
+
   try {
+    debugStage = "parse-body";
     console.log("Function invoked.");
     const { studentId, planId, organizationId } = await req.json();
     console.log("Request body:", { studentId, planId, organizationId });
@@ -45,6 +48,7 @@ serve(async (req: Request) => {
       );
     }
 
+    debugStage = "init-supabase";
     console.log("Initializing Supabase client...");
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -56,6 +60,7 @@ serve(async (req: Request) => {
       }
     );
 
+    debugStage = "fetch-student";
     console.log(`Fetching student with ID: ${studentId}`);
     const { data: student, error: studentError } = await supabase
       .from("students")
@@ -72,6 +77,7 @@ serve(async (req: Request) => {
     }
     console.log("Student found:", student);
 
+    debugStage = "fetch-plan";
     console.log(`Fetching plan with ID: ${planId}`);
     const { data: plan, error: planError } = await supabase
       .from("membership_plans")
@@ -88,6 +94,7 @@ serve(async (req: Request) => {
     }
     console.log("Plan found:", plan);
 
+    debugStage = "create-stripe-customer";
     console.log("Creating Stripe customer...");
     const customer = await stripe.customers.create({
       email: student.email,
@@ -95,6 +102,7 @@ serve(async (req: Request) => {
     });
     console.log("Stripe customer created:", customer.id);
 
+    debugStage = "create-checkout-session";
     console.log("Creating Stripe checkout session...");
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -133,7 +141,7 @@ serve(async (req: Request) => {
       error instanceof Error ? error.message : JSON.stringify(error);
     return new Response(
       JSON.stringify({
-        error: "Error creating checkout session",
+        error: `Error creating checkout session at stage: ${debugStage}`,
         details: errorMessage,
       }),
       {
