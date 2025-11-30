@@ -1,6 +1,12 @@
 import { Badge } from "@/components/ui/badge";
 
-export type BeltRank = "white" | "blue" | "purple" | "brown" | "black";
+export enum BeltRank {
+  White = "white",
+  Blue = "blue",
+  Purple = "purple",
+  Brown = "brown",
+  Black = "black",
+}
 
 interface BeltBadgeProps {
   rank: BeltRank;
@@ -16,7 +22,8 @@ const beltConfig = {
 };
 
 export default function BeltBadge({ rank, className }: BeltBadgeProps) {
-  const config = beltConfig[rank];
+  const normalizedRank = (rank?.toLowerCase() as BeltRank) || "white";
+  const config = beltConfig[normalizedRank] || beltConfig.white;
   
   return (
     <Badge variant="outline" className={`${config.color} ${className}`}>

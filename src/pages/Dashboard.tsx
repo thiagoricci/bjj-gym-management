@@ -1,83 +1,178 @@
-import { Users, TrendingUp, Award, Calendar } from "lucide-react";
+import { Users, TrendingUp, UserPlus, UserCheck } from "lucide-react";
 import StatCard from "@/components/StatCard";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import BeltBadge, { BeltRank } from "@/components/BeltBadge";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
+import StudentList from "@/components/dashboard/StudentList";
 
-// Mock data
-const recentStudents = [
-  { id: 1, name: "Carlos Silva", belt: "blue" as BeltRank, joinDate: "2024-01-15" },
-  { id: 2, name: "Ana Santos", belt: "white" as BeltRank, joinDate: "2024-01-20" },
-  { id: 3, name: "Pedro Costa", belt: "purple" as BeltRank, joinDate: "2024-01-22" },
-  { id: 4, name: "Maria Oliveira", belt: "white" as BeltRank, joinDate: "2024-01-25" },
-];
+import StudentGrowthChart from "@/components/dashboard/StudentGrowthChart";
+import RevenueChart from "@/components/dashboard/RevenueChart";
+import AttendanceChart from "@/components/dashboard/AttendanceChart";
+import BeltDistributionChart from "@/components/dashboard/BeltDistributionChart";
+import { useAuth } from "@/contexts/AuthContext";
+import { toZonedTime } from "date-fns-tz";
+import { Button } from "@/components/ui/button";
+ 
+ export default function Dashboard() {
+   const { organization } = useAuth();
+  const { data: students, isLoading } = useQuery({
+    queryKey: ["students"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("students")
+        .select("*")
+        .order("join_date", { ascending: false });
+      
+      if (error) throw error;
+      return data;
+    },
+  });
 
-export default function Dashboard() {
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  const timezone = organization?.timezone || "UTC";
+  const now = new Date();
+  const zonedNow = toZonedTime(now, timezone);
+  
+  const currentMonth = zonedNow.getMonth();
+  const currentYear = zonedNow.getFullYear();
+  const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+  const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+  // Helper to check if date is in specific month/year
+  const isInMonth = (dateStr: string, month: number, year: number) => {
+    const date = new Date(dateStr);
+    // Treat the stored date string as being in the organization's timezone
+    const zonedDate = toZonedTime(date, timezone);
+    return zonedDate.getMonth() === month && zonedDate.getFullYear() === year;
+  };
+
+  // Helper to check if date is before specific month/year (for cumulative totals)
+  const isBeforeOrInMonth = (dateStr: string, month: number, year: number) => {
+    const date = new Date(dateStr);
+    // Treat the stored date string as being in the organization's timezone
+    const zonedDate = toZonedTime(date, timezone);
+    if (zonedDate.getFullYear() < year) return true;
+    if (zonedDate.getFullYear() === year && zonedDate.getMonth() <= month) return true;
+    return false;
+  };
+
+  // 1. Total Students (no trials)
+  const totalStudentsList = students?.filter(s => s.status === 'student') || [];
+  const totalStudentsCount = totalStudentsList.length;
+  
+  const lastMonthTotalStudentsCount = totalStudentsList.filter(s =>
+    isBeforeOrInMonth(s.join_date, lastMonth, lastMonthYear)
+  ).length;
+
+  const totalStudentsTrend = lastMonthTotalStudentsCount > 0
+    ? Math.round(((totalStudentsCount - lastMonthTotalStudentsCount) / lastMonthTotalStudentsCount) * 100)
+    : 0;
+
+  // 2. Active Students (active membership status)
+  const activeStudentsList = students?.filter(s => s.status === 'student' && s.membership_status === 'active') || [];
+  const activeStudentsCount = activeStudentsList.length;
+
+  const lastMonthActiveStudentsCount = activeStudentsList.filter(s =>
+    isBeforeOrInMonth(s.join_date, lastMonth, lastMonthYear)
+  ).length;
+
+  const activeStudentsTrend = lastMonthActiveStudentsCount > 0
+    ? Math.round(((activeStudentsCount - lastMonthActiveStudentsCount) / lastMonthActiveStudentsCount) * 100)
+    : 0;
+
+  // 3. New Students (no trials) - joined this month
+  const newStudentsList = students?.filter(s => s.status === 'student' && isInMonth(s.join_date, currentMonth, currentYear)) || [];
+  const newStudentsCount = newStudentsList.length;
+
+  // 4. Number of Trials - active trials
+  const trialsList = students?.filter(s => s.status === 'trial') || [];
+  const trialsCount = trialsList.length;
+  
+  const newTrialsThisMonthCount = trialsList.filter(s =>
+    isInMonth(s.join_date, currentMonth, currentYear)
+  ).length;
+
+
+  // Lists for display
+  const recentStudents = students?.filter(s => s.status === 'student') || [];
+  const recentTrials = students?.filter(s => s.status === 'trial') || [];
+  const frozenStudents = students?.filter(s => s.membership_status === 'frozen') || [];
+  const inactiveStudents = students?.filter(s => s.membership_status === 'inactive') || [];
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h2>
-        <p className="text-muted-foreground">Overview of your academy</p>
-      </div>
+      <div className="flex justify-between items-center">
+       <div>
+         <h2 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h2>
+         <p className="text-muted-foreground">Overview of your academy</p>
+       </div>
+     </div>
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Students"
-          value={48}
+          value={totalStudentsCount}
           icon={Users}
-          trend="+12% from last month"
-          trendUp
+          trend={`${totalStudentsTrend > 0 ? '+' : ''}${totalStudentsTrend}% overtime`}
+          trendUp={totalStudentsTrend >= 0}
         />
         <StatCard
-          title="Active This Week"
-          value={36}
+          title="Active Students"
+          value={activeStudentsCount}
+          icon={UserCheck}
+          trend={`${activeStudentsTrend > 0 ? '+' : ''}${activeStudentsTrend}% overtime`}
+          trendUp={activeStudentsTrend >= 0}
+        />
+        <StatCard
+          title="New Students"
+          value={newStudentsCount}
+          icon={UserPlus}
+          trend="This Month"
+        />
+        <StatCard
+          title="Active Trials"
+          value={trialsCount}
           icon={TrendingUp}
-          trend="75% attendance"
-          trendUp
-        />
-        <StatCard
-          title="Belt Promotions"
-          value={5}
-          icon={Award}
-          trend="This quarter"
-        />
-        <StatCard
-          title="Classes This Week"
-          value={12}
-          icon={Calendar}
-          trend="4 more scheduled"
+          trend={`${newTrialsThisMonthCount} new this month`}
         />
       </div>
 
-      {/* Recent Students */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Students</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {recentStudents.map((student) => (
-              <div
-                key={student.id}
-                className="flex items-center justify-between rounded-lg border border-border p-4 transition-all hover:border-primary/50 hover:shadow-md"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-lg font-bold text-primary">
-                    {student.name.charAt(0)}
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">{student.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Joined {new Date(student.joinDate).toLocaleDateString()}
-                    </p>
-                  </div>
-                </div>
-                <BeltBadge rank={student.belt} />
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Charts Grid */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <StudentGrowthChart />
+        <RevenueChart />
+        <AttendanceChart />
+        <BeltDistributionChart />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <StudentList
+          title="Recent Students"
+          students={recentStudents}
+          emptyMessage="No recent students"
+        />
+        <StudentList
+          title="Recent Trials"
+          students={recentTrials}
+          emptyMessage="No active trials"
+        />
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <StudentList
+          title="Frozen Students"
+          students={frozenStudents}
+          emptyMessage="No frozen students"
+        />
+        <StudentList
+          title="Inactive Students"
+          students={inactiveStudents}
+          emptyMessage="No inactive students"
+        />
+      </div>
     </div>
   );
 }

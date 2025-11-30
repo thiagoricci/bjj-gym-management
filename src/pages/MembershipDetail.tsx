@@ -1,11 +1,5 @@
-import { useState } from "react";
-import {
-  Search,
-  Mail,
-  Phone,
-  MoreHorizontal,
-  ArrowUpDown,
-} from "lucide-react";
+import { useParams } from "react-router-dom";
+import { Mail, Phone, MoreHorizontal, ArrowUpDown, ArrowLeft } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -28,77 +22,53 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { toast } from "sonner";
 import { formatDate } from "@/lib/date";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { useState, useEffect } from "react";
 
-export default function Students() {
+export default function MembershipDetail() {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { organization } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
-  const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState({
     key: "join_date",
     direction: "desc",
   });
-  const [currentPage, setCurrentPage] = useState(1);
-  const studentsPerPage = 20;
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
 
-  const deleteStudentMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("students").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] });
-      toast.success("Student deleted successfully");
-      setStudentToDelete(null);
-    },
-    onError: (error) => {
-      toast.error(`Error deleting student: ${error.message}`);
-    },
-  });
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["students", sortConfig, currentPage],
+  const { data: membershipPlan, isLoading: isPlanLoading } = useQuery({
+    queryKey: ["membershipPlan", id],
     queryFn: async () => {
-      const from = (currentPage - 1) * studentsPerPage;
-      const to = from + studentsPerPage - 1;
-
-      const { data, error, count } = await supabase
-        .from("students")
-        .select("*, membership_plans(name)", { count: "exact" })
-        .order(sortConfig.key, { ascending: sortConfig.direction === "asc" })
-        .range(from, to);
+      const { data, error } = await supabase
+        .from("membership_plans")
+        .select("*")
+        .eq("id", id)
+        .single();
 
       if (error) throw error;
-      return { data, count };
+      return data;
     },
   });
 
-  const students = data?.data || [];
-  const totalStudents = data?.count || 0;
-  const totalPages = Math.ceil(totalStudents / studentsPerPage);
+  const { data: students, isLoading: isStudentsLoading } = useQuery({
+    queryKey: ["students", "membership", id, sortConfig],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("students")
+        .select("*")
+        .eq("membership_plan_id", id)
+        .order(sortConfig.key, { ascending: sortConfig.direction === "asc" });
+
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const filteredStudents =
     students?.filter((student) =>
@@ -122,27 +92,38 @@ export default function Students() {
     return sortConfig.direction === "asc" ? "↑" : "↓";
   };
 
-  if (isLoading) {
+  if (isPlanLoading || isStudentsLoading) {
     return <div>Loading...</div>;
+  }
+
+  if (!membershipPlan) {
+    return <div>Membership plan not found</div>;
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-4">
+        <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">Students</h2>
-          <p className="text-muted-foreground">Manage your academy students</p>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">
+            {membershipPlan.name}
+          </h2>
+          <p className="text-muted-foreground">
+            {membershipPlan.description}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="relative w-full sm:w-80">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search students..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="relative w-full sm:w-80">
+          <Input
+            placeholder="Search students..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+          <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         </div>
       </div>
 
@@ -155,6 +136,12 @@ export default function Students() {
                 onClick={() => handleSort("name")}
               >
                 Name {renderSortArrow("name")}
+              </TableHead>
+              <TableHead
+                className="cursor-pointer"
+                onClick={() => handleSort("belt")}
+              >
+                Belt {renderSortArrow("belt")}
               </TableHead>
               <TableHead
                 className="cursor-pointer"
@@ -185,6 +172,16 @@ export default function Students() {
                       {student.name?.charAt(0) || "?"}
                     </div>
                     {student.name || "Unknown Student"}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    <BeltBadge rank={student.belt as BeltRank} />
+                    {student.stripes && student.stripes > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {student.stripes} stripe{student.stripes > 1 ? 's' : ''}
+                      </span>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell>
@@ -242,16 +239,6 @@ export default function Students() {
                       <DropdownMenuItem onClick={() => navigate(`/student/${student.id}/edit`)}>
                         Edit student
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setStudentToDelete(student.id);
-                        }}
-                      >
-                        Delete student
-                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -260,63 +247,6 @@ export default function Students() {
           </TableBody>
         </Table>
       </div>
-
-      <div className="flex items-center justify-between">
-        <div className="text-sm text-muted-foreground">
-          Showing {students.length} of {totalStudents} students.
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-            disabled={currentPage === 1}
-          >
-            Previous
-          </Button>
-          <span className="text-sm">
-            Page {currentPage} of {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-            }
-            disabled={currentPage === totalPages}
-          >
-            Next
-          </Button>
-        </div>
-      </div>
-
-      <AlertDialog
-        open={!!studentToDelete}
-        onOpenChange={(open) => !open && setStudentToDelete(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the
-              student and remove their data from our servers.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                if (studentToDelete) {
-                  deleteStudentMutation.mutate(studentToDelete);
-                }
-              }}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

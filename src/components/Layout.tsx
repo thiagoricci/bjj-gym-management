@@ -15,14 +15,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <div className="flex h-16 items-center justify-between px-6">
               <div className="flex items-center gap-4">
                 <SidebarTrigger />
-                <Link to="/" className="flex items-center gap-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-primary">
-                    <span className="text-xl font-bold text-primary-foreground">BJJ</span>
-                  </div>
-                  <span className="hidden font-bold text-foreground sm:inline-block">
-                    Academy Manager
-                  </span>
-                </Link>
               </div>
               <div className="flex items-center gap-4">
                 <Link to="/add-student">

@@ -1,0 +1,86 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+
+export default function Onboarding() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [orgName, setOrgName] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleCreateOrganization = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+    
+    setLoading(true);
+
+    try {
+      // 1. Create Organization
+      const slug = orgName.toLowerCase().replace(/[^a-z0-9]/g, "-");
+      const { data: org, error: orgError } = await supabase
+        .from("organizations")
+        .insert([{ name: orgName, slug, owner_id: user.id }])
+        .select()
+        .single();
+
+      if (orgError) throw orgError;
+
+      // 2. Create Profile linked to Organization
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .insert([
+          {
+            id: user.id,
+            organization_id: org.id,
+            role: "owner",
+          },
+        ]);
+
+      if (profileError) throw profileError;
+
+      toast.success("Organization created successfully!");
+      // Force a reload to refresh the auth context
+      window.location.href = "/";
+    } catch (error: any) {
+      toast.error(error.message || "Error creating organization");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl font-bold">Welcome to Academy Manager</CardTitle>
+          <CardDescription>
+            Let's set up your academy. What is the name of your gym?
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleCreateOrganization} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="orgName">Academy Name</Label>
+              <Input
+                id="orgName"
+                placeholder="e.g. Gracie Barra Downtown"
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Setting up..." : "Get Started"}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

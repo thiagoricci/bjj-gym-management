@@ -1,19 +1,30 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { MaskedInput } from "@/components/ui/masked-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/AuthContext";
+import { Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-export default function AddStudent() {
+export default function EditStudent() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { id } = useParams();
+  const queryClient = useQueryClient();
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -23,6 +34,20 @@ export default function AddStudent() {
     status: "trial",
     membershipStatus: "active",
     membershipPlanId: "",
+  });
+
+  const { data: student, isLoading: isLoadingStudent } = useQuery({
+    queryKey: ["student", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("students")
+        .select("*")
+        .eq("id", id)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
   });
 
   const { data: membershipPlans } = useQuery({
@@ -38,31 +63,53 @@ export default function AddStudent() {
     },
   });
 
-  const addStudentMutation = useMutation({
-    mutationFn: async (newStudent: {
-      name: string;
-      email: string;
-      phone: string;
-      birth_date: string | null;
-      belt: string;
-      status: string;
-      join_date: string;
-      membership_status: string | null;
-      membership_plan_id: number | null;
-      organization_id: string;
-    }) => {
+  useEffect(() => {
+    if (student) {
+      setFormData({
+        name: student.name || "",
+        email: student.email || "",
+        phone: student.phone || "",
+        birthDate: student.birth_date || "",
+        belt: student.belt || "white",
+        status: student.status || "trial",
+        membershipStatus: student.membership_status || "active",
+        membershipPlanId: student.membership_plan_id?.toString() || "",
+      });
+    }
+  }, [student]);
+
+  const updateStudentMutation = useMutation({
+    mutationFn: async (updatedStudent: any) => {
       const { error } = await supabase
         .from("students")
-        .insert([newStudent]);
+        .update(updatedStudent)
+        .eq("id", id);
       
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Student added successfully!");
+      queryClient.invalidateQueries({ queryKey: ["student", id] });
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      toast.success("Student updated successfully!");
       navigate("/students");
     },
     onError: (error) => {
-      toast.error(`Error adding student: ${error.message}`);
+      toast.error(`Error updating student: ${error.message}`);
+    },
+  });
+
+  const deleteStudentMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("students").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      toast.success("Student deleted successfully");
+      navigate("/students");
+    },
+    onError: (error) => {
+      toast.error(`Error deleting student: ${error.message}`);
     },
   });
 
@@ -75,11 +122,6 @@ export default function AddStudent() {
       return;
     }
 
-    if (!profile?.organization_id) {
-      toast.error("Organization not found");
-      return;
-    }
-
     const studentData = {
       name: formData.name,
       email: formData.email,
@@ -87,24 +129,36 @@ export default function AddStudent() {
       birth_date: formData.birthDate || null,
       belt: formData.belt,
       status: formData.status,
-      join_date: new Date().toISOString().split('T')[0],
       membership_status: formData.status === 'student' ? formData.membershipStatus : null,
       membership_plan_id: formData.status === 'student' && formData.membershipPlanId ? parseInt(formData.membershipPlanId) : null,
-      organization_id: profile.organization_id,
     };
 
-    addStudentMutation.mutate(studentData);
+    updateStudentMutation.mutate(studentData);
   };
 
   const handleChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  if (isLoadingStudent) {
+    return <div>Loading...</div>;
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight text-foreground">Add New Student</h2>
-        <p className="text-muted-foreground">Register a new student to your academy</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">Edit Student</h2>
+          <p className="text-muted-foreground">Update student information</p>
+        </div>
+        <Button
+          variant="destructive"
+          size="sm"
+          onClick={() => setIsDeleteDialogOpen(true)}
+        >
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete Student
+        </Button>
       </div>
 
       <Card>
@@ -138,12 +192,12 @@ export default function AddStudent() {
 
             <div className="space-y-2">
               <Label htmlFor="phone">Phone *</Label>
-              <MaskedInput
+              <Input
                 id="phone"
-                mask="(00) 00000-0000"
-                placeholder="Enter student's phone number"
+                type="tel"
+                placeholder="+55 11 98765-4321"
                 value={formData.phone}
-                onChange={(value) => handleChange("phone", value)}
+                onChange={(e) => handleChange("phone", e.target.value)}
                 required
               />
             </div>
@@ -159,7 +213,7 @@ export default function AddStudent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="belt">Starting Belt</Label>
+              <Label htmlFor="belt">Current Belt</Label>
               <Select value={formData.belt} onValueChange={(value) => handleChange("belt", value)}>
                 <SelectTrigger id="belt">
                   <SelectValue />
@@ -226,7 +280,7 @@ export default function AddStudent() {
 
             <div className="flex gap-4 pt-4">
               <Button type="submit" className="flex-1">
-                Add Student
+                Save Changes
               </Button>
               <Button
                 type="button"
@@ -240,6 +294,27 @@ export default function AddStudent() {
           </form>
         </CardContent>
       </Card>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the student
+              and remove their data from our servers.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteStudentMutation.mutate()}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

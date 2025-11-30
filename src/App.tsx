@@ -8,8 +8,18 @@ import Index from "./pages/Index";
 import Students from "./pages/Students";
 import StudentDetail from "./pages/StudentDetail";
 import AddStudent from "./pages/AddStudent";
+import EditStudent from "./pages/EditStudent";
 import Memberships from "./pages/Memberships";
+import MembershipDetail from "./pages/MembershipDetail";
+import Attendance from "./pages/Attendance";
+import Schedule from "./pages/Schedule";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import Login from "./pages/Login";
+import SignUp from "./pages/SignUp";
+import Onboarding from "./pages/Onboarding";
+import { AuthProvider } from "./contexts/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -18,17 +28,29 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/students" element={<Layout><Students /></Layout>} />
-          <Route path="/student/:id" element={<Layout><StudentDetail /></Layout>} />
-          <Route path="/add-student" element={<Layout><AddStudent /></Layout>} />
-          <Route path="/memberships" element={<Layout><Memberships /></Layout>} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<SignUp />} />
+            <Route path="/onboarding" element={<Onboarding />} />
+            
+            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/students" element={<ProtectedRoute><Layout><Students /></Layout></ProtectedRoute>} />
+            <Route path="/student/:id" element={<ProtectedRoute><Layout><StudentDetail /></Layout></ProtectedRoute>} />
+            <Route path="/add-student" element={<ProtectedRoute><Layout><AddStudent /></Layout></ProtectedRoute>} />
+            <Route path="/student/:id/edit" element={<ProtectedRoute><Layout><EditStudent /></Layout></ProtectedRoute>} />
+            <Route path="/memberships" element={<ProtectedRoute><Layout><Memberships /></Layout></ProtectedRoute>} />
+            <Route path="/membership/:id" element={<ProtectedRoute><Layout><MembershipDetail /></Layout></ProtectedRoute>} />
+            <Route path="/attendance" element={<ProtectedRoute><Layout><Attendance /></Layout></ProtectedRoute>} />
+            <Route path="/schedule" element={<ProtectedRoute><Layout><Schedule /></Layout></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
+            
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
