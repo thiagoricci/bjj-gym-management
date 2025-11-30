@@ -1,14 +1,21 @@
-import { serve } from "std/http/server.ts";
-import { createClient } from "supabase-js";
-import Stripe from "stripe";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
+import Stripe from "https://esm.sh/stripe@12.3.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") as string, {
+const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
+
+if (!stripeSecretKey) {
+  console.error("Missing STRIPE_SECRET_KEY environment variable");
+  throw new Error("Missing STRIPE_SECRET_KEY environment variable");
+}
+
+const stripe = new Stripe(stripeSecretKey as string, {
   apiVersion: "2023-10-16",
   httpClient: Stripe.createFetchHttpClient(),
 });
 
-serve(async (req) => {
+serve(async (req: Request) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response("ok", {
@@ -22,6 +29,11 @@ serve(async (req) => {
     const { studentId, planId, organizationId } = await req.json();
     console.log("Request body:", { studentId, planId, organizationId });
 
+    const siteUrl = Deno.env.get("SITE_URL");
+    if (!siteUrl) {
+      console.error("Missing SITE_URL environment variable");
+      throw new Error("Missing SITE_URL environment variable");
+    }
     if (!studentId || !planId || !organizationId) {
       console.error("Missing required parameters.");
       return new Response(
@@ -99,10 +111,8 @@ serve(async (req) => {
         },
       ],
       mode: "payment",
-      success_url: `${Deno.env.get(
-        "SITE_URL"
-      )}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${Deno.env.get("SITE_URL")}/payment-cancelled`,
+      success_url: `${siteUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${siteUrl}/payment-cancelled`,
       customer: customer.id,
       client_reference_id: studentId.toString(),
       metadata: {
@@ -119,10 +129,12 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("Caught error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : JSON.stringify(error);
     return new Response(
       JSON.stringify({
         error: "Error creating checkout session",
-        details: error.message,
+        details: errorMessage,
       }),
       {
         status: 500,
