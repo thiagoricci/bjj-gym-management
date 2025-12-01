@@ -12,7 +12,7 @@ import { toZonedTime } from "date-fns-tz";
  */
 export function formatDate(
   date: string | Date | null | undefined,
-  timezone: string = "UTC",
+  timezone?: string,
   formatStr: string = "PPP"
 ): string {
   if (!date) return "";
@@ -26,8 +26,8 @@ export function formatDate(
       return format(localDate, formatStr);
     }
 
-    // Ensure timezone is valid, default to UTC if null/undefined/empty
-    const tz = timezone || "UTC";
+    // Ensure timezone is valid, default to user's local timezone if null/undefined/empty
+    const tz = timezone || getLocalTimezone();
 
     // Convert string to Date object if needed
     const dateObj = typeof date === "string" ? new Date(date) : date;
@@ -53,9 +53,10 @@ export function getLocalTimezone(): string {
  * @param timezone - The timezone to get the date for (default: 'UTC')
  * @returns The date string (e.g., '2023-12-25')
  */
-export function getTodayInTimezone(timezone: string = "UTC"): string {
+export function getTodayInTimezone(timezone?: string): string {
   const now = new Date();
-  const zonedDate = toZonedTime(now, timezone);
+  const tz = timezone || getLocalTimezone();
+  const zonedDate = toZonedTime(now, tz);
   return format(zonedDate, "yyyy-MM-dd");
 }
 
@@ -64,9 +65,10 @@ export function getTodayInTimezone(timezone: string = "UTC"): string {
  * @param timezone - The timezone to get the day for (default: 'UTC')
  * @returns The day of the week (0 = Sunday, 1 = Monday, etc.)
  */
-export function getDayOfWeekInTimezone(timezone: string = "UTC"): number {
+export function getDayOfWeekInTimezone(timezone?: string): number {
   const now = new Date();
-  const zonedDate = toZonedTime(now, timezone);
+  const tz = timezone || getLocalTimezone();
+  const zonedDate = toZonedTime(now, tz);
   return zonedDate.getDay();
 }
 
@@ -75,9 +77,10 @@ export function getDayOfWeekInTimezone(timezone: string = "UTC"): number {
  * @param timezone - The timezone to get the date for (default: 'UTC')
  * @returns The date string (e.g., '2023-12-25')
  */
-export function getWeekStartInTimezone(timezone: string = "UTC"): string {
+export function getWeekStartInTimezone(timezone?: string): string {
   const now = new Date();
-  const zonedDate = toZonedTime(now, timezone);
+  const tz = timezone || getLocalTimezone();
+  const zonedDate = toZonedTime(now, tz);
   const start = startOfWeek(zonedDate, { weekStartsOn: 1 }); // Monday start
   return format(start, "yyyy-MM-dd");
 }

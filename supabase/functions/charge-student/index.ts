@@ -1,0 +1,257 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
+import Stripe from "https://esm.sh/stripe@12.3.0";
+import { corsHeaders } from "../_shared/cors.ts";
+
+const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") as string, {
+  apiVersion: "2023-10-16",
+  httpClient: Stripe.createFetchHttpClient(),
+});
+
+serve(async (req: Request) => {
+  // Handle CORS preflight requests
+  if (req.method === "OPTIONS") {
+    return new Response("ok", {
+      status: 200,
+      headers: corsHeaders,
+    });
+  }
+
+  try {
+    const { studentId, planId, paymentMethodId } = await req.json();
+
+    if (!studentId || !planId || !paymentMethodId) {
+      return new Response(
+        JSON.stringify({ error: "Missing required parameters" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Initialize Supabase client
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    // Fetch student
+    const { data: student, error: studentError } = await supabase
+      .from("students")
+      .select("name, email, stripe_customer_id, organization_id")
+      .eq("id", studentId)
+      .single();
+
+    if (studentError || !student) {
+      return new Response(JSON.stringify({ error: "Student not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!student.stripe_customer_id) {
+      return new Response(
+        JSON.stringify({ error: "Student has no Stripe customer ID" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Fetch plan
+    const { data: plan, error: planError } = await supabase
+      .from("membership_plans")
+      .select("name, price, period")
+      .eq("id", planId)
+      .single();
+
+    if (planError || !plan) {
+      return new Response(JSON.stringify({ error: "Plan not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Get the organization's Stripe account ID for Connect mode
+    let stripeAccountId: string | null = null;
+    if (student.organization_id) {
+      const { data: organization } = await supabase
+        .from("organizations")
+        .select("stripe_account_id")
+        .eq("id", student.organization_id)
+        .single();
+      
+      stripeAccountId = organization?.stripe_account_id || null;
+    }
+
+    if (!stripeAccountId) {
+      return new Response(
+        JSON.stringify({ error: "Stripe account not configured for this organization" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    // Build Stripe options for connected account
+    const stripeOptions = { stripeAccount: stripeAccountId };
+
+    // Set the default payment method for the customer
+    console.log(`Setting default payment method ${paymentMethodId} for customer ${student.stripe_customer_id}`);
+    await stripe.customers.update(
+      student.stripe_customer_id,
+      {
+        invoice_settings: {
+          default_payment_method: paymentMethodId,
+        },
+      },
+      stripeOptions
+    );
+
+    // Create a subscription instead of a one-time payment
+    console.log(`Creating subscription for student ${studentId} for plan ${planId}`);
+    
+    // First, create or find a product for this plan
+    const productName = `Membership: ${plan.name}`;
+    let product: Stripe.Product;
+    
+    // Search for existing product
+    const existingProducts = await stripe.products.search({
+      query: `name:'${productName}'`,
+    }, stripeOptions);
+    
+    if (existingProducts.data.length > 0) {
+      product = existingProducts.data[0];
+    } else {
+      // Create a new product
+      product = await stripe.products.create({
+        name: productName,
+        metadata: {
+          planId: planId.toString(),
+        },
+      }, stripeOptions);
+    }
+    
+    // Create a price for the subscription
+    const price = await stripe.prices.create({
+      product: product.id,
+      unit_amount: Math.round(parseFloat(plan.price) * 100),
+      currency: "usd",
+      recurring: {
+        interval: "month",
+      },
+      metadata: {
+        planId: planId.toString(),
+      },
+    }, stripeOptions);
+    
+    // Create the subscription with the price
+    const subscription = await stripe.subscriptions.create({
+      customer: student.stripe_customer_id,
+      items: [
+        {
+          price: price.id,
+        },
+      ],
+      default_payment_method: paymentMethodId,
+      metadata: {
+        studentId: studentId.toString(),
+        planId: planId.toString(),
+        organizationId: student.organization_id,
+      },
+      expand: ["latest_invoice.payment_intent"],
+    }, stripeOptions);
+
+    // Check if the subscription was created successfully
+    const invoice = subscription.latest_invoice as Stripe.Invoice;
+    const paymentIntent = invoice?.payment_intent as Stripe.PaymentIntent;
+    
+    if (subscription.status === "active" || subscription.status === "trialing" ||
+        (paymentIntent && paymentIntent.status === "succeeded")) {
+      // Check if this is a trial plan (free with Daily or Weekly period)
+      const isTrialPlan = 
+        (plan.price === "0" || plan.price === "0.00") &&
+        ["Daily", "Weekly"].includes(plan.period);
+      
+      // Update student status
+      const { error: updateError } = await supabase
+        .from("students")
+        .update({
+          membership_status: "active",
+          status: isTrialPlan ? "trial" : "student",
+          membership_plan_id: parseInt(planId),
+        })
+        .eq("id", studentId);
+
+      if (updateError) {
+        console.error("Error updating student status:", updateError);
+        // We still return success because payment succeeded, but log the error
+      }
+
+      // Record payment
+      if (student.organization_id) {
+        console.log(`Attempting to insert payment for student ${studentId} in org ${student.organization_id}`);
+        const { data: paymentData, error: paymentError } = await supabase
+          .from("payments")
+          .insert({
+            student_id: parseInt(studentId.toString()),
+            organization_id: student.organization_id,
+            amount: parseFloat(plan.price),
+            date: new Date().toISOString(),
+            status: 'paid'
+          })
+          .select();
+
+        if (paymentError) {
+          console.error("Error recording payment:", JSON.stringify(paymentError));
+        } else {
+          console.log(`Payment recorded for student: ${studentId}`, paymentData);
+        }
+      } else {
+        console.error(`Student ${studentId} has no organization_id, skipping payment record.`);
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        subscriptionId: subscription.id,
+        subscriptionStatus: subscription.status,
+        studentId: studentId
+      }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } else {
+      // Subscription creation failed or requires action
+      const errorStatus = paymentIntent?.status || subscription.status;
+      return new Response(
+        JSON.stringify({
+          error: "Subscription creation failed or requires action",
+          status: errorStatus,
+          clientSecret: paymentIntent?.client_secret
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+  } catch (error) {
+    console.error("Error processing charge:", error);
+    let errorMessage = "Internal Server Error";
+    if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    // Handle Stripe errors specifically if possible
+    return new Response(
+      JSON.stringify({ error: errorMessage }),
+      {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
+});

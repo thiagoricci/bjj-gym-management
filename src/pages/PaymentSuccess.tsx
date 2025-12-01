@@ -1,120 +1,185 @@
 import { useEffect, useState } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function PaymentSuccess() {
-  const [searchParams] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
-  const { refreshProfile } = useAuth(); // To potentially refresh user context if needed
-  const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying");
-  const [message, setMessage] = useState("Verifying payment...");
+  const searchParams = new URLSearchParams(location.search);
+  const sessionId = searchParams.get("session_id");
+  const studentId = searchParams.get("student_id");
+  const [verificationStatus, setVerificationStatus] = useState<'verifying' | 'success' | 'error' | 'timeout'>('verifying');
+  const [retryCount, setRetryCount] = useState(0);
+  const maxRetries = 3;
 
-  useEffect(() => {
-    const verifyPayment = async () => {
-      const sessionId = searchParams.get("session_id");
+  const verifyPaymentMutation = useMutation({
+    mutationFn: async (params: { sessionId: string; studentId: string }) => {
+      const { data, error } = await supabase.functions.invoke("verify-payment-and-update-student", {
+        body: params,
+      });
 
-      if (!sessionId) {
-        setStatus("error");
-        setMessage("Missing session ID.");
+      if (error) {
+        console.error("Verification error:", error);
+        throw new Error(error.message || "Verification failed");
+      }
+
+      // Handle processing status
+      if (data?.status === "processing") {
+        const processingError = new Error("Payment is still processing");
+        processingError.message = data.message || "Payment is still processing. Please wait a moment and try again.";
+        throw processingError;
+      }
+
+      return data;
+    },
+    onSuccess: (data) => {
+      setVerificationStatus('success');
+      toast.success("Payment successful and student updated!");
+      // Redirect to the student detail page to see the successful activation
+      setTimeout(() => {
+        navigate(`/student/${studentId}`);
+      }, 2000);
+    },
+    onError: (error, variables, context) => {
+      console.error("Payment verification failed:", error);
+      setVerificationStatus('error');
+      
+      // If we haven't exceeded max retries and it's a processing error, retry
+      if (retryCount < maxRetries && (
+        error.message?.includes('processing') || 
+        error.message?.includes('not successful') ||
+        error.message?.includes('Payment status')
+      )) {
+        toast.info(`Payment may still be processing. Retrying... (${retryCount + 1}/${maxRetries})`);
+        setTimeout(() => {
+          setRetryCount(prev => prev + 1);
+          verifyPaymentMutation.mutate(variables);
+        }, 3000); // Wait 3 seconds before retry
         return;
       }
+      
+      toast.error(`Error verifying payment: ${error.message}`);
+      // Still navigate to student detail after error to avoid being stuck
+      setTimeout(() => {
+        navigate(`/student/${studentId}`);
+      }, 3000);
+    },
+  });
 
-      try {
-        // Call the new Supabase Edge Function to verify the payment and update the student
-        // This function will be created next
-        const { data: { session } } = await supabase.auth.getSession();
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-payment-and-update-student`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session?.access_token}`, // Pass the user's session token
-            },
-            body: JSON.stringify({ sessionId }),
-          }
-        );
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to verify payment.");
-        }
-
-        const result = await response.json();
-        if (result.success) {
-          setStatus("success");
-          setMessage(result.message || "Payment confirmed and student activated successfully!");
-          // Optionally refresh any cached student data here if needed globally
-          // For now, we rely on the student detail page to refetch data when navigated to
-        } else {
-          setStatus("error");
-          setMessage(result.message || "Payment verification failed.");
-        }
-      } catch (error: any) {
-        console.error("Payment verification error:", error);
-        setStatus("error");
-        setMessage(error.message || "An unexpected error occurred during payment verification.");
+  // Add timeout mechanism
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (verificationStatus === 'verifying') {
+        setVerificationStatus('timeout');
+        toast.warning("Payment verification timed out. Please check your student status manually.");
+        setTimeout(() => {
+          navigate(`/student/${studentId}`);
+        }, 3000);
       }
-    };
+    }, 30000); // 30 second timeout
 
-    verifyPayment();
-  }, [searchParams]);
+    return () => clearTimeout(timeout);
+  }, [verificationStatus, navigate]);
 
-  const handleGoToDashboard = () => {
-    navigate("/dashboard");
+  useEffect(() => {
+    if (sessionId && studentId && verificationStatus === 'verifying') {
+      verifyPaymentMutation.mutate({ sessionId, studentId });
+    }
+  }, [sessionId, studentId, verificationStatus]);
+
+  const renderContent = () => {
+    switch (verificationStatus) {
+      case 'verifying':
+        return (
+          <>
+            <Loader2 className="w-16 h-16 animate-spin text-primary" />
+            <h1 className="mt-4 text-2xl font-bold">Verifying Payment...</h1>
+            <p className="text-muted-foreground text-center">
+              Please wait while we confirm your payment.
+              {retryCount > 0 && ` (Attempt ${retryCount + 1}/${maxRetries + 1})`}
+            </p>
+            <Button 
+              variant="outline" 
+              onClick={() => setVerificationStatus('timeout')}
+              className="mt-4"
+            >
+              Skip Verification
+            </Button>
+          </>
+        );
+      
+      case 'success':
+        return (
+          <>
+            <CheckCircle className="w-16 h-16 text-green-500" />
+            <h1 className="mt-4 text-2xl font-bold text-green-600">Payment Successful!</h1>
+            <p className="text-muted-foreground text-center">
+              Your payment has been verified and the student has been updated.
+              <br />
+              Redirecting to student details...
+            </p>
+          </>
+        );
+      
+      case 'error':
+        return (
+          <>
+            <XCircle className="w-16 h-16 text-red-500" />
+            <h1 className="mt-4 text-2xl font-bold text-red-600">Verification Failed</h1>
+            <p className="text-muted-foreground text-center mb-4">
+              We couldn't verify your payment automatically.
+              <br />
+              Please check the student's status manually or contact support.
+            </p>
+            <Button onClick={() => navigate(`/student/${studentId}`)} className="mt-4">
+              View Student
+            </Button>
+          </>
+        );
+      
+      case 'timeout':
+        return (
+          <>
+            <Clock className="w-16 h-16 text-yellow-500" />
+            <h1 className="mt-4 text-2xl font-bold text-yellow-600">Verification Timeout</h1>
+            <p className="text-muted-foreground text-center mb-4">
+              The verification is taking longer than expected.
+              <br />
+              Please check the student's status manually.
+            </p>
+            <Button onClick={() => navigate(`/student/${studentId}`)} className="mt-4">
+              View Student
+            </Button>
+          </>
+        );
+      
+      default:
+        return null;
+    }
   };
 
-  const handleGoToStudent = () => {
-    // We could pass the student ID if we stored it before the checkout, but for now, go to the main student list
-    navigate("/students");
-  };
+  if (!sessionId || !studentId) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen">
+        <XCircle className="w-16 h-16 text-red-500" />
+        <h1 className="mt-4 text-2xl font-bold text-red-600">Missing Information</h1>
+        <p className="text-muted-foreground text-center mb-4">
+          Payment session information is missing.
+        </p>
+        <Button onClick={() => navigate("/students")} className="mt-4">
+          Go to Students
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <Card className="w-full max-w-md mx-4">
-        <CardHeader className="text-center">
-          <CardTitle className="flex items-center justify-center gap-2 text-2xl">
-            {status === "success" ? (
-              <>
-                <CheckCircle className="h-8 w-8 text-green-50" />
-                Success
-              </>
-            ) : status === "error" ? (
-              <>
-                <XCircle className="h-8 w-8 text-destructive" />
-                Error
-              </>
-            ) : (
-              "Processing..."
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-center space-y-4">
-          <p className="text-muted-foreground">{message}</p>
-          {status === "success" && (
-            <div className="pt-4 flex flex-col gap-2">
-              <Button onClick={handleGoToStudent}>
-                View Students
-              </Button>
-              <Button variant="outline" onClick={handleGoToDashboard}>
-                Go to Dashboard
-              </Button>
-            </div>
-          )}
-          {status === "error" && (
-            <div className="pt-4">
-              <Button variant="outline" onClick={handleGoToDashboard}>
-                Go to Dashboard
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+    <div className="flex flex-col items-center justify-center h-screen space-y-4">
+      {renderContent()}
     </div>
   );
 }

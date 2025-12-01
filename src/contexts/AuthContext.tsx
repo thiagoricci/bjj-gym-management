@@ -77,13 +77,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (profileError) {
         // Ignore error if profile doesn't exist yet (new user)
-        if (profileError.code !== "PGRST116") {
+        if (profileError.code === "PGRST116") {
+          // This is expected for new users, so we can ignore it.
+        } else {
           console.error("Error fetching profile:", profileError);
         }
       } else {
         setProfile(profileData);
-        
-        if (profileData.organization_id) {
+
+        if (profileData && profileData.organization_id) {
           const { data: orgData, error: orgError } = await supabase
             .from("organizations")
             .select(
@@ -108,6 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshProfile = async () => {
     if (user) {
+      setLoading(true);
       await fetchProfile(user.id);
     }
   };

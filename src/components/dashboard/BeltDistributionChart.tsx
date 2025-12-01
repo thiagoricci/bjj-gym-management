@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 const COLORS = {
   white: "#FFFFFF",
@@ -14,12 +15,14 @@ const COLORS = {
 const beltOrder = ["white", "blue", "purple", "brown", "black"];
 
 export default function BeltDistributionChart() {
+  const { organization } = useAuth();
   const { data: students, isLoading } = useQuery({
     queryKey: ["students-for-belt-chart"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("students")
         .select("belt")
+        .eq("organization_id", organization.id)
         .eq("status", "student");
       if (error) throw error;
       return data;

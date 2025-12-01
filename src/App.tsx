@@ -18,6 +18,11 @@ import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
 import Onboarding from "./pages/Onboarding";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentCancelled from "./pages/PaymentCancelled";
+import StripeConnectCallback from "./pages/StripeConnectCallback";
+import PasswordRecovery from "./pages/PasswordRecovery";
+import ResetPassword from "./pages/ResetPassword";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -33,6 +38,8 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
+            <Route path="/password-recovery" element={<PasswordRecovery />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/onboarding" element={<Onboarding />} />
             
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
@@ -45,6 +52,9 @@ const App = () => (
             <Route path="/attendance" element={<ProtectedRoute><Layout><Attendance /></Layout></ProtectedRoute>} />
             <Route path="/schedule" element={<ProtectedRoute><Layout><Schedule /></Layout></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
+            <Route path="/payment-success" element={<ProtectedRoute><Layout><PaymentSuccess /></Layout></ProtectedRoute>} />
+            <Route path="/payment-cancelled" element={<ProtectedRoute><Layout><PaymentCancelled /></Layout></ProtectedRoute>} />
+            <Route path="/stripe-connect-callback" element={<ProtectedRoute><StripeConnectCallback /></ProtectedRoute>} />
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

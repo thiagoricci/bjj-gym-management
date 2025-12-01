@@ -3,43 +3,63 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
 import Stripe from "https://esm.sh/stripe@12.3.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") as string, {
-  apiVersion: "2023-10-16",
-  httpClient: Stripe.createFetchHttpClient(),
-});
-
 serve(async (req) => {
+  // Handle OPTIONS request for CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", { status: 405 });
-  }
-
-  const { sessionId } = await req.json();
-
-  if (!sessionId) {
-    return new Response(JSON.stringify({ error: "Missing session ID" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-    {
-      global: {
-        headers: { Authorization: req.headers.get("Authorization")! },
-      },
-    }
-  );
-
   try {
-    // 1. Fetch the checkout session from Stripe to get payment details
+    // Initialize Stripe and Supabase clients within the try block
+    // to handle potential missing environment variables gracefully.
+    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") as string, {
+      apiVersion: "2023-10-16",
+      httpClient: Stripe.createFetchHttpClient(),
+    });
+
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+
+    // Validate the request method
+    if (req.method !== "POST") {
+      return new Response("Method not allowed", { status: 405, headers: corsHeaders });
+    }
+
+    // Parse the request body
+    const { sessionId, studentId } = await req.json();
+    if (!sessionId || !studentId) {
+      return new Response(JSON.stringify({ error: "Missing session ID or student ID" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // 1. Fetch student and organization to get the Stripe account ID
+    const { data: studentOrg, error: studentOrgError } = await supabase
+      .from("students")
+      .select("organization_id, organizations(stripe_account_id)")
+      .eq("id", studentId)
+      .single();
+
+    if (studentOrgError || !studentOrg || !studentOrg.organizations?.stripe_account_id) {
+      return new Response(
+        JSON.stringify({ error: "Could not find student or linked Stripe account" }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const stripeAccountId = studentOrg.organizations.stripe_account_id;
+
+    // 2. Fetch the checkout session from Stripe using the connected account
     const session = await stripe.checkout.sessions.retrieve(sessionId, {
-      expand: ['line_items'],
+      expand: ["line_items"],
+    }, {
+      stripeAccount: stripeAccountId,
     });
 
     if (!session) {
@@ -50,18 +70,37 @@ serve(async (req) => {
     }
 
     // 2. Verify payment status
+    console.log(`Payment status for session ${sessionId}: ${session.payment_status}`);
+    
+    if (session.payment_status === "processing") {
+      // Payment is still processing, this is normal for some payment methods
+      return new Response(JSON.stringify({ 
+        status: "processing",
+        message: "Payment is still processing. Please wait a moment and try again.", 
+        session_status: session.payment_status 
+      }), {
+        status: 202, // Accepted but not completed
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
     if (session.payment_status !== "paid") {
-      return new Response(JSON.stringify({ error: "Payment was not successful", message: `Payment status is ${session.payment_status}` }), {
+      console.error(`Payment not successful. Status: ${session.payment_status}, Session:`, session);
+      return new Response(JSON.stringify({ 
+        error: "Payment was not successful", 
+        message: `Payment status is ${session.payment_status}`,
+        session_status: session.payment_status 
+      }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // 3. Extract relevant data from the session
-    const studentId = session.client_reference_id; // This should have been set during checkout creation
+    const studentIdFromSession = session.client_reference_id; // This should have been set during checkout creation
     const planId = session.metadata?.planId; // This should have been set during checkout creation
 
-    if (!studentId || !planId) {
+    if (!studentIdFromSession || !planId) {
       return new Response(JSON.stringify({ error: "Missing student ID or plan ID in session metadata" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -72,7 +111,7 @@ serve(async (req) => {
     const { data: student, error: studentError } = await supabase
       .from("students")
       .select("id, organization_id") // Only select necessary fields
-      .eq("id", studentId)
+      .eq("id", studentIdFromSession)
       .single();
 
     if (studentError || !student) {
@@ -83,16 +122,36 @@ serve(async (req) => {
       });
     }
 
+    // 4.5. Fetch the plan to determine if it's a trial plan
+    const { data: plan, error: planError } = await supabase
+      .from("membership_plans")
+      .select("price, period")
+      .eq("id", planId)
+      .single();
+
+    if (planError || !plan) {
+      console.error("Error fetching plan:", planError);
+      return new Response(JSON.stringify({ error: "Plan not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Check if this is a trial plan (free with Daily or Weekly period)
+    const isTrialPlan =
+      (plan.price === "0" || plan.price === "0.00") &&
+      ["Daily", "Weekly"].includes(plan.period);
+
     // 5. Update the student's membership_plan_id, membership_status, and save stripe_customer_id
     const { error: updateError } = await supabase
       .from("students")
       .update({
         membership_plan_id: parseInt(planId, 10),
         membership_status: "active",
-        status: "student", // Ensure status is 'student' when active
+        status: isTrialPlan ? "trial" : "student", // Set status based on plan type
         stripe_customer_id: session.customer as string, // Save customer ID for future payments
       })
-      .eq("id", studentId);
+      .eq("id", studentIdFromSession);
 
     if (updateError) {
       console.error("Error updating student:", updateError);
@@ -102,30 +161,39 @@ serve(async (req) => {
       });
     }
 
-    // 6. Optionally, create a payment record in your 'payments' table
-    // This assumes you have a 'payments' table with columns like id, student_id, amount, date, stripe_session_id, etc.
-    // const amount = session.amount_total; // This is in cents
-    // const currency = session.currency;
-    // const paymentDate = new Date(session.created * 1000).toISOString(); // Convert Unix timestamp to ISO string
-    // const { error: paymentError } = await supabase
-    //   .from("payments")
-    //   .insert([{
-    //     student_id: studentId,
-    //     amount: amount ? amount / 10 : 0, // Convert cents to dollars
-    //     currency: currency || 'usd',
-    //     date: paymentDate,
-    //     stripe_session_id: sessionId,
-    //     status: session.payment_status, // e.g., 'paid'
-    //   }]);
-    //
-    // if (paymentError) {
-    //   console.error("Error inserting payment record:", paymentError);
-    //   // Log the error but don't necessarily fail the main operation if payment logging fails
-    // }
+    // 6. Create a payment record in 'payments' table
+    const amount = session.amount_total; // This is in cents
+    const paymentDate = new Date(session.created * 1000).toISOString(); // Convert Unix timestamp to ISO string
+    
+    if (student.organization_id) {
+      console.log(`Attempting to insert payment for student ${studentIdFromSession} in org ${student.organization_id}`);
+      const { data: paymentData, error: paymentError } = await supabase
+        .from("payments")
+        .insert([{
+          student_id: studentIdFromSession,
+          organization_id: student.organization_id,
+          amount: amount ? amount / 100 : 0, // Convert cents to dollars
+          date: paymentDate,
+          status: session.payment_status, // e.g., 'paid'
+        }])
+        .select();
+      
+      if (paymentError) {
+        console.error("Error inserting payment record:", JSON.stringify(paymentError));
+      } else {
+        console.log(`Payment recorded for student: ${studentIdFromSession}`, paymentData);
+      }
+    } else {
+      console.error(`Student ${studentIdFromSession} has no organization_id, skipping payment record.`);
+    }
 
-    return new Response(JSON.stringify({ success: true, message: "Payment verified and student updated successfully." }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  return new Response(JSON.stringify({
+    success: true,
+    message: "Payment verified and student updated successfully.",
+    studentId: studentIdFromSession, // Return the studentId to the client
+  }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 
   } catch (error) {
     console.error("Verification error:", error);

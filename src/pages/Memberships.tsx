@@ -250,7 +250,7 @@ export default function Memberships() {
                 <div className="flex items-center gap-2 text-sm mt-4">
                   <Users className="h-4 w-4 text-primary" />
                   <span className="text-muted-foreground">
-                    {plan.activeMembers} active members
+                    {plan.totalMembers} active members
                   </span>
                 </div>
 

@@ -177,16 +177,11 @@ export default function MembershipDetail() {
                 <TableCell>
                   <div className="flex items-center gap-2">
                     <BeltBadge rank={student.belt as BeltRank} />
-                    {student.stripes && student.stripes > 0 && (
-                      <span className="text-xs text-muted-foreground">
-                        {student.stripes} stripe{student.stripes > 1 ? 's' : ''}
-                      </span>
-                    )}
                   </div>
                 </TableCell>
                 <TableCell>
                   <Badge
-                    variant={student.status === "trial" ? "secondary" : "default"}
+                    variant={student.status === "trial" ? "secondary" : student.status === "none" || !student.status ? "secondary" : "default"}
                     className={cn(
                       "text-xs",
                       student.status === "student" &&
@@ -197,11 +192,17 @@ export default function MembershipDetail() {
                         "bg-gray-500 hover:bg-gray-600",
                       student.status === "student" &&
                         student.membership_status === "frozen" &&
-                        "bg-yellow-500 hover:bg-yellow-600"
+                        "bg-yellow-500 hover:bg-yellow-600",
+                      student.status === "trial" &&
+                        "bg-blue-100 text-blue-800 hover:bg-blue-200",
+                      (student.status === "none" || !student.status) &&
+                        "bg-gray-100 text-gray-800 hover:bg-gray-200"
                     )}
                   >
                     {student.status === "trial"
                       ? "Trial"
+                      : student.status === "none" || !student.status
+                      ? "None"
                       : student.membership_status
                       ? student.membership_status.charAt(0).toUpperCase() +
                         student.membership_status.slice(1)

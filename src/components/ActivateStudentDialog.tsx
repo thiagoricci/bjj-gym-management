@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CreditCard, DollarSign, Calendar, Shield } from "lucide-react";
+import { CreditCard, DollarSign, Calendar, Shield, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MembershipPlan {
@@ -16,15 +16,26 @@ interface MembershipPlan {
   features?: string[];
 }
 
+interface PaymentMethod {
+  id: string;
+  brand: string;
+  last4: string;
+  exp_month: number;
+  exp_year: number;
+}
+
 interface ActivateStudentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   plans: MembershipPlan[];
   selectedPlanId: string;
   onSelectPlan: (planId: string) => void;
-  onProceedToPayment: () => void;
+  onProceedToPayment: (paymentMethodId?: string) => void;
+  onActivateFreePlan: () => void;
   isProcessing: boolean;
   studentName: string;
+  studentStatus?: "trial" | "student";
+  paymentMethods?: PaymentMethod[];
 }
 
 export default function ActivateStudentDialog({
@@ -34,10 +45,46 @@ export default function ActivateStudentDialog({
   selectedPlanId,
   onSelectPlan,
   onProceedToPayment,
+  onActivateFreePlan,
   isProcessing,
   studentName,
+  studentStatus,
+  paymentMethods = [],
 }: ActivateStudentDialogProps) {
-  const selectedPlan = plans.find((p) => p.id.toString() === selectedPlanId);
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string>("new");
+
+  useEffect(() => {
+    if (open) {
+      if (paymentMethods && paymentMethods.length > 0) {
+        setSelectedPaymentMethodId(paymentMethods[0].id);
+      } else {
+        setSelectedPaymentMethodId("new");
+      }
+    }
+  }, [open, paymentMethods]);
+
+  const filteredPlans =
+    studentStatus === "student"
+      ? plans.filter((plan) => {
+          const isTrialPlan =
+            (plan.price === "0" || plan.price === "0.00") &&
+            ["Daily", "Weekly"].includes(plan.period);
+          return !isTrialPlan;
+        })
+      : plans;
+
+  const selectedPlan = filteredPlans.find(
+    (p) => p.id.toString() === selectedPlanId
+  );
+  const isFreePlan = selectedPlan?.price === "0" || selectedPlan?.price === "0.00";
+
+  const handleAction = () => {
+    if (isFreePlan) {
+      onActivateFreePlan();
+    } else {
+      onProceedToPayment(selectedPaymentMethodId === "new" ? undefined : selectedPaymentMethodId);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -45,7 +92,8 @@ export default function ActivateStudentDialog({
         <DialogHeader>
           <DialogTitle className="text-2xl">Activate Student Membership</DialogTitle>
           <DialogDescription>
-            Select a membership plan for <span className="font-semibold text-foreground">{studentName}</span> and proceed to secure payment
+            Select a membership plan for <span className="font-semibold text-foreground">{studentName}</span>
+            {isFreePlan ? " and activate their membership." : " and proceed to secure payment to activate their membership."}
           </DialogDescription>
         </DialogHeader>
 
@@ -58,7 +106,7 @@ export default function ActivateStudentDialog({
                 <SelectValue placeholder="Choose a plan" />
               </SelectTrigger>
               <SelectContent>
-                {plans?.map((plan) => (
+                {filteredPlans?.map((plan) => (
                   <SelectItem key={plan.id} value={plan.id.toString()}>
                     <div className="flex items-center justify-between gap-4 w-full">
                       <span>{plan.name}</span>
@@ -110,7 +158,7 @@ export default function ActivateStudentDialog({
                       <span className="text-sm font-medium">Amount Due Today:</span>
                     </div>
                     <span className="text-2xl font-bold text-foreground">
-                      {selectedPlan.price === "0" || selectedPlan.price === "0.00" ? "Free" : selectedPlan.price}
+                      {isFreePlan ? "Free" : selectedPlan.price}
                     </span>
                   </div>
                 </div>
@@ -119,24 +167,87 @@ export default function ActivateStudentDialog({
           )}
 
           {/* Payment Info */}
-          <Card className="border-muted bg-muted/20">
-            <CardContent className="pt-6">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5">
-                  <Shield className="h-5 w-5 text-primary" />
-                </div>
-                <div className="space-y-2 flex-1">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-sm font-medium text-foreground">Secure Payment Information</p>
+          {!isFreePlan && (
+            <div className="space-y-3">
+              <label className="text-sm font-medium text-foreground">Payment Method</label>
+              {paymentMethods.length > 0 ? (
+                <div className="space-y-2 mb-4">
+                  {paymentMethods.map((method) => (
+                    <div
+                      key={method.id}
+                      className={cn(
+                        "flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors",
+                        selectedPaymentMethodId === method.id
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:bg-accent/50"
+                      )}
+                      onClick={() => setSelectedPaymentMethodId(method.id)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-12 bg-background rounded border flex items-center justify-center">
+                          <CreditCard className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-medium capitalize">
+                            {method.brand} •••• {method.last4}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            Expires {method.exp_month}/{method.exp_year}
+                          </span>
+                        </div>
+                      </div>
+                      {selectedPaymentMethodId === method.id && (
+                        <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                          <Check className="h-3 w-3" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  
+                  <div
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors",
+                      selectedPaymentMethodId === "new"
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:bg-accent/50"
+                    )}
+                    onClick={() => setSelectedPaymentMethodId("new")}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-12 bg-background rounded border flex items-center justify-center">
+                        <CreditCard className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <span className="text-sm font-medium">Use a new card</span>
+                    </div>
+                    {selectedPaymentMethodId === "new" && (
+                      <div className="h-5 w-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center">
+                        <Check className="h-3 w-3" />
+                      </div>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Payment details will be securely stored for future billing. You'll be redirected to our secure payment processor to complete the transaction.
-                  </p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              ) : (
+                <Card className="border-muted bg-muted/20">
+                  <CardContent className="pt-6">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5">
+                        <Shield className="h-5 w-5 text-primary" />
+                      </div>
+                      <div className="space-y-2 flex-1">
+                        <div className="flex items-center gap-2">
+                          <CreditCard className="h-4 w-4 text-muted-foreground" />
+                          <p className="text-sm font-medium text-foreground">No Payment Method on File</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          To activate this membership, you'll be redirected to our secure payment processor to add a payment method and complete the transaction.
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter className="gap-2">
@@ -144,19 +255,21 @@ export default function ActivateStudentDialog({
             Cancel
           </Button>
           <Button
-            onClick={onProceedToPayment}
+            onClick={handleAction}
             disabled={!selectedPlanId || isProcessing}
             className={cn("min-w-[200px]", isProcessing && "cursor-wait")}
           >
             {isProcessing ? (
               <>
                 <div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2" />
-                Redirecting to Payment...
+                {isFreePlan ? "Activating..." : selectedPaymentMethodId === "new" ? "Redirecting..." : "Processing..."}
               </>
+            ) : isFreePlan ? (
+              "Activate Membership"
             ) : (
               <>
                 <CreditCard className="h-4 w-4 mr-2" />
-                Proceed to Secure Payment
+                {paymentMethods.length === 0 || selectedPaymentMethodId === "new" ? "Proceed to Secure Payment" : "Charge Saved Card"}
               </>
             )}
           </Button>

@@ -1,0 +1,5 @@
+ALTER TABLE students
+ADD COLUMN address TEXT,
+ADD COLUMN city TEXT,
+ADD COLUMN state TEXT,
+ADD COLUMN zip_code TEXT;

@@ -1,4 +1,4 @@
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Award, Edit, Trash2, Activity, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,16 +40,94 @@ import StudentProfileCard from "@/components/StudentProfileCard";
 import PersonalInformationCard from "@/components/PersonalInformationCard";
 import { loadStripe } from "@stripe/stripe-js";
 import ActivateStudentDialog from "@/components/ActivateStudentDialog";
+import PaymentMethods from "@/components/PaymentMethods";
+import PaymentHistory from "@/components/PaymentHistory";
 
 export default function StudentDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { organization } = useAuth();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string>("");
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    const setupSuccess = searchParams.get("setup_success");
+    const setupCancelled = searchParams.get("setup_cancelled");
+
+    if (setupSuccess === "true") {
+      toast.success("Payment method added successfully!");
+      // Clear the query param
+      setSearchParams({});
+      // Invalidate payment methods query to refresh the list
+      queryClient.invalidateQueries({ queryKey: ["payment-methods", id] });
+    } else if (setupCancelled === "true") {
+      toast.info("Payment method setup cancelled.");
+      setSearchParams({});
+    }
+  }, [searchParams, setSearchParams, queryClient, id]);
+
+  const createSetupSessionMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) throw new Error("Student ID is missing");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-setup-session`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({
+            studentId: id,
+            organizationId: organization.id,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error("create-setup-session failed", response.status, errorBody);
+        let errorMessage = "An unexpected error occurred.";
+        try {
+          const jsonError = JSON.parse(errorBody);
+          if (jsonError.error) {
+            errorMessage = jsonError.error;
+          }
+        } catch (e) {
+          errorMessage = errorBody.substring(0, 100);
+        }
+        throw new Error(errorMessage);
+      }
+
+      return response.json();
+    },
+    onSuccess: async (data) => {
+      const { sessionId } = data;
+      const stripe = await loadStripe(
+        import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+      );
+      if (stripe && sessionId) {
+        await stripe.redirectToCheckout({ sessionId });
+      } else {
+        toast.error("Failed to initialize Stripe or missing session ID.");
+      }
+    },
+    onError: (error) => {
+      toast.error(`Failed to initiate payment method setup: ${error.message}`);
+    },
+  });
+
+  const handleAddPaymentMethod = () => {
+    createSetupSessionMutation.mutate();
+  };
 
   const { data: student, isLoading: isLoadingStudent } = useQuery({
     queryKey: ["student", id],
@@ -109,11 +187,117 @@ export default function StudentDetail() {
     },
   });
 
+  const { data: paymentMethods, isLoading: isLoadingPaymentMethods, error: paymentMethodsError } = useQuery({
+    queryKey: ["payment-methods", id],
+    queryFn: async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-payment-methods`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ studentId: id }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Failed to fetch payment methods:", response.status, errorText);
+        throw new Error("Failed to fetch payment methods");
+      }
+
+      const data = await response.json();
+      return data.paymentMethods || [];
+    },
+    enabled: !!id,
+  });
+
+  // Log payment methods error for debugging
+  if (paymentMethodsError) {
+    console.error("Payment methods query error:", paymentMethodsError);
+  }
+
   useEffect(() => {
     if (student?.membership_plan_id) {
       setSelectedPlan(student.membership_plan_id.toString());
     }
   }, [student]);
+
+  const deletePaymentMethodMutation = useMutation({
+    mutationFn: async (paymentMethodId: string) => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_SUPABASE_URL
+        }/functions/v1/delete-payment-method`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ paymentMethodId, studentId: id }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to delete payment method");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payment-methods", id] });
+      toast.success("Payment method deleted successfully");
+    },
+    onError: (error) => {
+      toast.error(`Error deleting payment method: ${error.message}`);
+    },
+  });
+
+  const setDefaultPaymentMethodMutation = useMutation({
+    mutationFn: async (paymentMethodId: string) => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const response = await fetch(
+        `${
+          import.meta.env.VITE_SUPABASE_URL
+        }/functions/v1/set-default-payment-method`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({ paymentMethodId, studentId: id }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to set default payment method");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payment-methods", id] });
+      toast.success("Default payment method updated successfully");
+    },
+    onError: (error) => {
+      toast.error(`Error setting default payment method: ${error.message}`);
+    },
+  });
 
   const updateMembershipMutation = useMutation({
     mutationFn: async ({ planId, additionalUpdates }: { planId: string; additionalUpdates?: any }) => {
@@ -136,7 +320,10 @@ export default function StudentDetail() {
   });
 
   const createCheckoutSessionMutation = useMutation({
-    mutationFn: async (planId: string) => {
+    mutationFn: async ({ planId }: { planId: string }) => {
+      if (!id) throw new Error("Student ID is missing");
+      console.log("Creating checkout session:", { studentId: id, planId });
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -192,26 +379,193 @@ export default function StudentDetail() {
     },
   });
 
-  const handleUpdateMembership = () => {
-    if (selectedPlan) {
-      createCheckoutSessionMutation.mutate(selectedPlan);
+  const chargeStudentMutation = useMutation({
+    mutationFn: async ({ planId, paymentMethodId }: { planId: string; paymentMethodId: string }) => {
+      if (!id) throw new Error("Student ID is missing");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/charge-student`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({
+            studentId: id,
+            planId,
+            paymentMethodId,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        let errorMessage = "An unexpected error occurred.";
+        try {
+          const jsonError = JSON.parse(errorBody);
+          if (jsonError.error) {
+            errorMessage = jsonError.error;
+          }
+        } catch (e) {
+          errorMessage = errorBody.substring(0, 100);
+        }
+        throw new Error(errorMessage);
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["student", id] });
+      queryClient.invalidateQueries({ queryKey: ["student-payments", id] });
+      toast.success("Membership activated successfully!");
+      setIsDialogOpen(false);
+      setPendingStatus(null);
+      
+      // Set status to active after successful payment
+      updateStudentStatusMutation.mutate();
+    },
+    onError: (error) => {
+      toast.error(`Failed to charge card: ${error.message}`);
+    },
+  });
+
+  const handleUpdateMembership = (paymentMethodId?: string) => {
+    if (!selectedPlan) {
+      toast.error("Please select a membership plan.");
+      return;
+    }
+
+    const plan = membershipPlans?.find(p => p.id.toString() === selectedPlan);
+    if (!plan) {
+      toast.error("Selected plan not found. Please try again.");
+      return;
+    }
+
+    if (plan.price === "0" || plan.price === "0.00") {
+      activateFreebieMutation.mutate(selectedPlan);
+    } else if (paymentMethodId) {
+      chargeStudentMutation.mutate({ planId: selectedPlan, paymentMethodId });
+    } else {
+      createCheckoutSessionMutation.mutate({ planId: selectedPlan });
     }
   };
+
+  const activateFreebieMutation = useMutation({
+    mutationFn: async (planId: string) => {
+      // Find the plan to determine if it's a trial plan
+      const plan = membershipPlans?.find(p => p.id.toString() === planId);
+      if (!plan) {
+        throw new Error("Plan not found");
+      }
+      
+      // Check if this is a trial plan (free with Daily or Weekly period)
+      const isTrialPlan = 
+        (plan.price === "0" || plan.price === "0.00") &&
+        ["Daily", "Weekly"].includes(plan.period);
+      
+      const { error } = await supabase
+        .from("students")
+        .update({
+          membership_plan_id: parseInt(planId),
+          status: isTrialPlan ? 'trial' : 'student',
+          membership_status: 'active'
+        })
+        .eq("id", id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["student", id] });
+      toast.success("Free membership activated successfully!");
+      setIsDialogOpen(false);
+      setPendingStatus(null);
+    },
+    onError: (error) => {
+      toast.error(`Error activating free membership: ${error.message}`);
+    },
+  });
+
+  const cancelSubscriptionMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      if (!id) throw new Error("Student ID is missing");
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cancel-subscription`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+          body: JSON.stringify({
+            studentId: id,
+            organizationId: organization.id,
+            reason,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        console.error("cancel-subscription failed", response.status, errorBody);
+        let errorMessage = "Failed to cancel subscription";
+        try {
+          const jsonError = JSON.parse(errorBody);
+          if (jsonError.error) {
+            errorMessage = jsonError.error;
+          }
+        } catch (e) {
+          errorMessage = errorBody.substring(0, 100);
+        }
+        throw new Error(errorMessage);
+      }
+
+      return response.json();
+    },
+  });
 
   const updateStatusMutation = useMutation({
     mutationFn: async (newStatus: string) => {
       let updates: any = {};
-      // Only handle non-active status changes here
-      // 'active' status is handled by the payment verification flow
+      
       if (newStatus === "trial") {
         updates = { status: "trial", membership_status: null, membership_plan_id: null };
+      } else if (newStatus === "none") {
+        updates = { status: "none", membership_status: null, membership_plan_id: null };
       } else if (newStatus === "frozen" || newStatus === "inactive") {
-        updates = { membership_status: newStatus };
-        // Optionally, clear the plan ID when setting to inactive/frozen, depending on business logic
-        // For now, let's keep the plan ID so reactivation is easier if needed outside the payment flow
-        // updates.membership_plan_id = null;
+        // Cancel any active Stripe subscriptions immediately
+        console.log(`Cancelling subscription for status change to: ${newStatus}`);
+        try {
+          const result = await cancelSubscriptionMutation.mutateAsync(
+            `Student status changed to ${newStatus}`
+          );
+          console.log("Subscription cancellation result:", result);
+        } catch (cancelError) {
+          console.error("Error cancelling subscription:", cancelError);
+          // Continue with status update even if cancellation fails
+          // The subscription might not exist or already be cancelled
+        }
+        
+        // Keep membership_plan_id so we know what plan to reactivate with
+        // Only update the membership_status to frozen/inactive
+        updates = {
+          membership_status: newStatus
+        };
+      } else if (newStatus === "active") {
+        // For active status from frozen/inactive, need to process payment
+        // Always open the membership dialog to process payment
+        // Pre-select their existing plan if they have one
+        throw new Error("REDIRECT_TO_MEMBERSHIP_SELECTION");
       } else {
-        // This case should ideally not be reached if the Select is configured correctly
         throw new Error(`Invalid status for direct update: ${newStatus}`);
       }
       
@@ -227,6 +581,11 @@ export default function StudentDetail() {
       toast.success("Status updated successfully");
     },
     onError: (error) => {
+      // Check if this is our special redirect case
+      if (error.message === "REDIRECT_TO_MEMBERSHIP_SELECTION") {
+        setIsDialogOpen(true);
+        return;
+      }
       toast.error(`Error updating status: ${error.message}`);
     },
   });
@@ -248,18 +607,22 @@ export default function StudentDetail() {
     },
   });
 
-  const deleteStudentMutation = useMutation({
+  const updateStudentStatusMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("students").delete().eq("id", id);
+      const { error } = await supabase
+        .from("students")
+        .update({
+          status: "student",
+          membership_status: "active"
+        })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["students"] });
-      toast.success("Student deleted successfully");
-      navigate("/students");
+      queryClient.invalidateQueries({ queryKey: ["student", id] });
     },
     onError: (error) => {
-      toast.error(`Error deleting student: ${error.message}`);
+      console.error("Error updating student status:", error);
     },
   });
 
@@ -280,26 +643,6 @@ export default function StudentDetail() {
           </CardContent>
         </Card>
   
-        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. This will permanently delete the student
-                and remove their data from our servers.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => deleteStudentMutation.mutate()}
-              >
-                Delete
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
     );
   }
@@ -311,22 +654,6 @@ export default function StudentDetail() {
           <ArrowLeft className="mr-2 h-4 w-4" />
           Go Back
         </Button>
-        <div className="flex gap-2">
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => setIsDeleteDialogOpen(true)}
-          >
-            <Trash2 className="mr-2 h-4 w-4" />
-            Delete Student
-          </Button>
-          <Link to={`/student/${id}/edit`}>
-            <Button variant="outline" size="sm">
-              <Edit className="mr-2 h-4 w-4" />
-              Edit Profile
-            </Button>
-          </Link>
-        </div>
       </div>
 
       {/* Student Header */}
@@ -338,79 +665,95 @@ export default function StudentDetail() {
             </div>
             <div className="flex-1 flex items-center justify-between">
               <h2 className="text-2xl font-bold text-foreground">{student.name || "Unknown Student"}</h2>
-              {student.status === "trial" ? (
-                // If the student is a trial, changing status to active should open the membership dialog to select a plan and initiate payment
-                <Select
-                  value="trial"
-                  onValueChange={(value) => {
-                    if (value === "active") {
-                      // If they try to set to active, open the membership dialog
-                      setIsDialogOpen(true);
-                    } else {
-                      // For other status changes from trial (e.g., inactive), update directly
-                      updateStatusMutation.mutate(value);
-                    }
-                  }}
-                  disabled={updateStatusMutation.isPending}
-                >
-                  <SelectTrigger
-                    className={cn(
-                      "h-8 w-[140px] border-none bg-secondary text-secondary-foreground hover:bg-secondary/80"
-                    )}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="trial">Trial</SelectItem>
-                    <SelectItem value="active">Activate (requires payment)</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                // If the student is already a 'student' (not trial), manage membership status directly, except for 'active'
-                <Select
-                  value={student.membership_status || "active"}
-                  onValueChange={(value) => {
-                    if (value === "active") {
-                      // If the student is already a 'student' but not 'active', and they select 'active',
-                      // they might not have a plan. We need to ensure a plan is selected or prompt for payment if none exists.
-                      // For now, if they are not active but are a student, we assume they need to pay again or re-activate via payment.
-                      // A more complex flow might involve checking if their plan is expired vs. frozen/inactive.
-                      // For simplicity here, if they are 'student' and not 'active', we'll force a plan selection/payment.
-                      if (!student.membership_plan_id) {
-                        // If they don't have a plan, open the dialog to select one
-                        setIsDialogOpen(true);
+              {(() => {
+                // Determine the current effective status
+                const isActiveStudent = student.status === "student" && student.membership_status === "active";
+                const isTrial = student.status === "trial";
+                const isNone = student.status === "none";
+                const isFrozen = student.membership_status === "frozen";
+                const isInactive = student.membership_status === "inactive";
+                
+                // Determine display value for the select
+                let displayValue = "none";
+                if (isActiveStudent) displayValue = "active";
+                else if (isTrial) displayValue = "trial";
+                else if (isFrozen) displayValue = "frozen";
+                else if (isInactive) displayValue = "inactive";
+                else if (isNone) displayValue = "none";
+                
+                // Determine background color
+                const bgClass = cn(
+                  "h-8 w-[140px] border-none",
+                  isActiveStudent && "bg-green-500 text-white hover:bg-green-600",
+                  isTrial && "bg-blue-500 text-white hover:bg-blue-600",
+                  isNone && "bg-gray-400 text-white hover:bg-gray-500",
+                  isFrozen && "bg-yellow-500 text-white hover:bg-yellow-600",
+                  isInactive && "bg-gray-500 text-white hover:bg-gray-600"
+                );
+                
+                return (
+                  <Select
+                    value={displayValue}
+                    onValueChange={(value) => {
+                      if (value === "active") {
+                        // Opening membership dialog to select a plan and process payment
+                        updateStatusMutation.mutate(value);
+                      } else if (value === "trial") {
+                        updateStatusMutation.mutate(value);
                       } else {
-                        // If they have a plan, we could potentially just update the status, but per requirement,
-                        // activation must be tied to a confirmed payment. So, we'll also force a new payment flow here.
-                        // Or, we could have a different "Reactivate" button/flow that just updates status if a plan exists.
-                        // For now, let's enforce payment on 'active' status selection.
-                        setIsDialogOpen(true);
+                        // For frozen/inactive, update directly
+                        updateStatusMutation.mutate(value);
                       }
-                    } else {
-                      // Update status directly for inactive/frozen
-                      updateStatusMutation.mutate(value);
-                    }
-                  }}
-                  disabled={updateStatusMutation.isPending}
-                >
-                  <SelectTrigger
-                    className={cn(
-                      "h-8 w-[140px] border-none",
-                      student.membership_status === "active" && "bg-green-500 text-white hover:bg-green-60",
-                      student.membership_status === "inactive" && "bg-gray-500 text-white hover:bg-gray-600",
-                      student.membership_status === "frozen" && "bg-yellow-500 text-white hover:bg-yellow-600"
-                    )}
+                    }}
+                    disabled={updateStatusMutation.isPending}
                   >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Activate (requires payment)</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                    <SelectItem value="frozen">Frozen</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
+                    <SelectTrigger className={bgClass}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* Status "none": Show only Trial and Active */}
+                      {isNone && (
+                        <>
+                          <SelectItem value="none">None</SelectItem>
+                          <SelectItem value="trial">Trial</SelectItem>
+                          <SelectItem value="active">Active</SelectItem>
+                        </>
+                      )}
+                      {/* Status "trial": Show only Active (upgrade path) */}
+                      {isTrial && (
+                        <>
+                          <SelectItem value="trial">Trial</SelectItem>
+                          <SelectItem value="active">Active</SelectItem>
+                        </>
+                      )}
+                      {/* Status "active": Show only Frozen and Inactive (no going back to Trial) */}
+                      {isActiveStudent && (
+                        <>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="frozen">Frozen</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                        </>
+                      )}
+                      {/* Status "frozen": Allow reactivation or going inactive */}
+                      {isFrozen && (
+                        <>
+                          <SelectItem value="frozen">Frozen</SelectItem>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                        </>
+                      )}
+                      {/* Status "inactive": Allow reactivation or freezing */}
+                      {isInactive && (
+                        <>
+                          <SelectItem value="inactive">Inactive</SelectItem>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="frozen">Frozen</SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                );
+              })()}
             </div>
           </div>
         </CardContent>
@@ -490,6 +833,14 @@ export default function StudentDetail() {
               </div>
             </CardContent>
           </Card>
+          <PaymentMethods
+            paymentMethods={paymentMethods || []}
+            onAddPaymentMethod={handleAddPaymentMethod}
+            onDeletePaymentMethod={deletePaymentMethodMutation.mutate}
+            onSetDefaultPaymentMethod={setDefaultPaymentMethodMutation.mutate}
+            isLoading={isLoadingPaymentMethods}
+          />
+          <PaymentHistory studentId={id!} />
         </div>
       </div>
 
@@ -504,8 +855,11 @@ export default function StudentDetail() {
         selectedPlanId={selectedPlan}
         onSelectPlan={setSelectedPlan}
         onProceedToPayment={handleUpdateMembership}
-        isProcessing={createCheckoutSessionMutation.isPending}
+        onActivateFreePlan={() => handleUpdateMembership()}
+        isProcessing={createCheckoutSessionMutation.isPending || activateFreebieMutation.isPending || chargeStudentMutation.isPending}
         studentName={student.name || "Unknown Student"}
+        studentStatus={student.status as "trial" | "student"}
+        paymentMethods={paymentMethods || []}
       />
     </div>
   );

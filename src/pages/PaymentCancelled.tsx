@@ -1,43 +1,19 @@
-import { XCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 export default function PaymentCancelled() {
   const navigate = useNavigate();
 
-  const handleGoToDashboard = () => {
-    navigate("/dashboard");
-  };
-
-  const handleGoToStudent = () => {
-    // We could pass the student ID if we stored it before the checkout, but for now, go to the main student list
+  useEffect(() => {
+    toast.error("Payment was cancelled. Please try again.");
     navigate("/students");
-  };
+  }, [navigate]);
 
   return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <Card className="w-full max-w-md mx-4">
-        <CardHeader className="text-center">
-          <CardTitle className="flex items-center justify-center gap-2 text-2xl">
-            <XCircle className="h-8 w-8 text-destructive" />
-            Payment Cancelled
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-center space-y-4">
-          <p className="text-muted-foreground">
-            Your payment was not completed. The student's membership status has not been changed.
-          </p>
-          <div className="pt-4 flex flex-col gap-2">
-            <Button onClick={handleGoToStudent}>
-              View Students
-            </Button>
-            <Button variant="outline" onClick={handleGoToDashboard}>
-              Go to Dashboard
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+    <div className="flex flex-col items-center justify-center h-screen">
+      <h1 className="mt-4 text-2xl font-bold">Payment Cancelled</h1>
+      <p className="text-muted-foreground">Redirecting to the students page...</p>
     </div>
   );
 }

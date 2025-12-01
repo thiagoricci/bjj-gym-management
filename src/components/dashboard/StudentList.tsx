@@ -69,8 +69,10 @@ export default function StudentList({
                 >
                   <div className="flex items-center gap-4">
                     <div className={`flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold ${
-                        student.status === 'trial' 
-                        ? 'bg-secondary/10 text-secondary-foreground' 
+                        student.status === 'trial'
+                        ? 'bg-blue-100 text-blue-800'
+                        : student.status === 'none' || !student.status
+                        ? 'bg-gray-100 text-gray-800'
                         : 'bg-primary/10 text-primary'
                     }`}>
                       {student.name?.charAt(0) || "?"}
@@ -78,7 +80,7 @@ export default function StudentList({
                     <div>
                       <p className="font-medium text-foreground">{student.name || "Unknown Student"}</p>
                       <p className="text-sm text-muted-foreground">
-                        {student.status === 'trial' ? 'Started' : 'Joined'} {formatDate(student.join_date, organization?.timezone)}
+                        {student.status === 'trial' ? 'Started' : student.status === 'none' || !student.status ? 'Status: None' : 'Joined'} {formatDate(student.join_date, organization?.timezone)}
                       </p>
                     </div>
                   </div>

@@ -10,7 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, refreshProfile } = useAuth();
   const [orgName, setOrgName] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -31,22 +31,25 @@ export default function Onboarding() {
 
       if (orgError) throw orgError;
 
-      // 2. Create Profile linked to Organization
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .insert([
-          {
-            id: user.id,
-            organization_id: org.id,
-            role: "owner",
-          },
-        ]);
+      // 2. Create or Update Profile linked to Organization
+      const { error: profileError } = await supabase.from("profiles").upsert({
+        id: user.id,
+        organization_id: org.id,
+        role: "owner",
+      });
 
       if (profileError) throw profileError;
 
       toast.success("Organization created successfully!");
-      // Force a reload to refresh the auth context
-      window.location.href = "/";
+      
+      // 3. Wait for profile refresh to complete before redirecting
+      await refreshProfile();
+      
+      // Small delay to ensure the auth context has updated
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Only redirect if we have successfully loaded the organization data
+      navigate("/", { replace: true });
     } catch (error: any) {
       toast.error(error.message || "Error creating organization");
     } finally {

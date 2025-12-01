@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Building2, MapPin, Globe, Save, CreditCard } from "lucide-react";
+import { Building2, MapPin, Globe, Save, CreditCard, Link, Unlink, Loader2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -262,27 +262,184 @@ export default function Settings() {
       </Card>
 
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Payments</CardTitle>
-          <CardDescription>
-            Manage your payment integration.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between rounded-lg border border-green-500/50 p-4">
-            <div>
-              <h3 className="font-semibold text-green-600">
-                Payment System Active
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Your academy is ready to accept payments through Stripe.
-              </p>
-            </div>
-            <CreditCard className="h-6 w-6 text-green-600" />
-          </div>
-        </CardContent>
-      </Card>
+      <StripeConnectCard />
     </div>
+  );
+}
+
+function StripeConnectCard() {
+  const { organization, session, refreshProfile } = useAuth();
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const isConnected = !!organization?.stripe_account_id;
+
+  const handleConnectStripe = async () => {
+    if (!session?.access_token) {
+      toast.error("Not authenticated");
+      return;
+    }
+
+    setConnecting(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "create-stripe-connect-link",
+        {
+          body: {
+            returnUrl: `${window.location.origin}/stripe-connect-callback`,
+          },
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message || "Failed to create Stripe link");
+      }
+
+      // Redirect to Stripe onboarding
+      window.location.href = data.url;
+    } catch (err: unknown) {
+      console.error("Error connecting Stripe:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to connect Stripe");
+      setConnecting(false);
+    }
+  };
+
+  const handleDisconnectStripe = async () => {
+    if (!session?.access_token) {
+      toast.error("Not authenticated");
+      return;
+    }
+
+    if (!confirm("Are you sure you want to disconnect your Stripe account? You will no longer be able to accept payments until you reconnect.")) {
+      return;
+    }
+
+    setDisconnecting(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "disconnect-stripe-account",
+        {
+          body: {},
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+
+      if (error || data?.error) {
+        throw new Error(data?.error || error?.message || "Failed to disconnect Stripe");
+      }
+
+      await refreshProfile();
+      toast.success("Stripe account disconnected");
+    } catch (err: unknown) {
+      console.error("Error disconnecting Stripe:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to disconnect Stripe");
+    } finally {
+      setDisconnecting(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Stripe Integration</CardTitle>
+        <CardDescription>
+          Connect your Stripe account to accept payments from students.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isConnected ? (
+          <>
+            <div className="flex items-center justify-between rounded-lg border border-green-500/50 bg-green-50 dark:bg-green-950/20 p-4">
+              <div className="flex items-center gap-3">
+                <CreditCard className="h-6 w-6 text-green-600" />
+                <div>
+                  <h3 className="font-semibold text-green-600">
+                    Stripe Connected
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Your academy is ready to accept payments.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button
+                variant="outline"
+                onClick={() => window.open("https://dashboard.stripe.com", "_blank")}
+                className="flex-1"
+              >
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Open Stripe Dashboard
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDisconnectStripe}
+                disabled={disconnecting}
+                className="flex-1"
+              >
+                {disconnecting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Disconnecting...
+                  </>
+                ) : (
+                  <>
+                    <Unlink className="mr-2 h-4 w-4" />
+                    Disconnect Stripe
+                  </>
+                )}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between rounded-lg border border-yellow-500/50 bg-yellow-50 dark:bg-yellow-950/20 p-4">
+              <div className="flex items-center gap-3">
+                <CreditCard className="h-6 w-6 text-yellow-600" />
+                <div>
+                  <h3 className="font-semibold text-yellow-600">
+                    Stripe Not Connected
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Connect your Stripe account to start accepting payments.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <Button
+              onClick={handleConnectStripe}
+              disabled={connecting}
+              className="w-full"
+            >
+              {connecting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                <>
+                  <Link className="mr-2 h-4 w-4" />
+                  Connect with Stripe
+                </>
+              )}
+            </Button>
+
+            <p className="text-xs text-muted-foreground text-center">
+              You'll be redirected to Stripe to create or connect your account.
+              This allows you to securely accept payments from your students.
+            </p>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }

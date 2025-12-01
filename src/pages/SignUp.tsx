@@ -25,10 +25,10 @@ export default function SignUp() {
 
       if (error) throw error;
 
-      toast.success("Account created! Please check your email to confirm.");
+      toast.success("Account created successfully! Please check your email to verify your account.");
       navigate("/login");
     } catch (error: any) {
-      toast.error(error.message || "Error signing up");
+      toast.error(error.message || "Error creating account");
     } finally {
       setLoading(false);
     }
@@ -38,9 +38,9 @@ export default function SignUp() {
     <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
+          <CardTitle className="text-2xl font-bold">Sign Up</CardTitle>
           <CardDescription>
-            Enter your email below to create your account
+            Enter your email and password to create an account
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -64,7 +64,6 @@ export default function SignUp() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>

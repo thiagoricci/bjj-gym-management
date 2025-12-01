@@ -5,17 +5,17 @@ import { Input } from '@/components/ui/input';
 type MaskedInputProps = Omit<React.ComponentProps<'input'>, 'onChange' | 'value'> & {
   mask: any;
   value: string;
-  onChange: (value: string) => void;
+  onValueChange: (value: string) => void;
 };
 
 const MaskedInput = React.forwardRef<HTMLInputElement, MaskedInputProps>(
-  ({ mask, value, onChange, ...props }, ref) => {
+  ({ mask, value, onValueChange, ...props }, ref) => {
     const {
       ref: imaskRef,
       setValue,
     } = useIMask(mask, {
       onAccept: (acceptedValue) => {
-        onChange(acceptedValue as string);
+        onValueChange(acceptedValue as string);
       },
     });
 
@@ -32,7 +32,7 @@ const MaskedInput = React.forwardRef<HTMLInputElement, MaskedInputProps>(
       (imaskRef as React.MutableRefObject<HTMLInputElement | null>).current = node;
     };
 
-    return <Input {...props} ref={combinedRef} defaultValue={value} />;
+    return <Input {...props} ref={combinedRef} value={value} />;
   }
 );
 

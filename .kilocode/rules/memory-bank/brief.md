@@ -25,7 +25,9 @@ This is a web-based management application designed for Brazilian Jiu-Jitsu (BJJ
 - **Data Fetching:** TanStack Query (React Query)
 - **Forms:** React Hook Form with Zod
 - **Icons:** Lucide React
+- **Database:** Supabase
+- **Payments:** Stripe
 
 ## Current Status
 
-The project is currently in an early development phase (v0.0.0). It has a solid architectural foundation with a configured component library, routing structure, and a functional dashboard using mock data.
+The project has evolved into a comprehensive BJJ academy management system with full Stripe payment integration. The system includes complete student lifecycle management, payment processing, attendance tracking, and membership management. All core features are now implemented with production-ready functionality including authentication, payment verification, and comprehensive student profiles.

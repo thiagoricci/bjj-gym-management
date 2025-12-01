@@ -2,25 +2,28 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
-import { subMonths, format, startOfMonth } from "date-fns";
+import { subMonths, format, startOfMonth, endOfMonth } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
 
-// Helper to generate the last 12 months
-const getLast12Months = () => {
+// Helper to generate months of the current year
+const getMonthsOfYear = () => {
   const months = [];
-  const today = new Date();
-  for (let i = 11; i >= 0; i--) {
-    months.push(startOfMonth(subMonths(today, i)));
+  const currentYear = new Date().getFullYear();
+  for (let i = 0; i < 12; i++) {
+    months.push(startOfMonth(new Date(currentYear, i, 1)));
   }
   return months;
 };
 
 export default function StudentGrowthChart() {
+  const { organization } = useAuth();
   const { data: students, isLoading } = useQuery({
     queryKey: ["students-for-growth-chart"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("students")
         .select("join_date")
+        .eq("organization_id", organization.id)
         .eq("status", "student");
       if (error) throw error;
       return data;
@@ -31,13 +34,14 @@ export default function StudentGrowthChart() {
     return <div>Loading Chart...</div>;
   }
 
-  const months = getLast12Months();
+  const months = getMonthsOfYear();
   const chartData = months.map((month) => {
+    const monthEnd = endOfMonth(month);
     const cumulativeStudents = students?.filter(
-      (s) => new Date(s.join_date) <= month
+      (s) => new Date(s.join_date) <= monthEnd
     ).length || 0;
     return {
-      month: format(month, "MMM yy"),
+      month: format(month, "MMM"),
       students: cumulativeStudents,
     };
   });
@@ -49,7 +53,7 @@ export default function StudentGrowthChart() {
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={chartData}>
+          <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="month" />
             <YAxis allowDecimals={false} />

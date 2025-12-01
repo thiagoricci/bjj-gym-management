@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { subDays, format } from "date-fns";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Helper to generate the last 7 days
 const getLast7Days = () => {
@@ -15,6 +16,7 @@ const getLast7Days = () => {
 };
 
 export default function AttendanceChart() {
+  const { organization } = useAuth();
   const { data: attendance, isLoading } = useQuery({
     queryKey: ["attendance-for-chart"],
     queryFn: async () => {
@@ -22,6 +24,7 @@ export default function AttendanceChart() {
       const { data, error } = await supabase
         .from("attendance")
         .select("date")
+        .eq("organization_id", organization.id)
         .gte("date", sevenDaysAgo);
       if (error) throw error;
       return data;

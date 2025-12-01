@@ -1,61 +1,78 @@
-import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { MaskedInput } from "@/components/ui/masked-input";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { getTodayInTimezone } from "@/lib/date";
+import { Loader2 } from "lucide-react";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+
+const studentSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Invalid email address").optional().or(z.literal("")),
+  phone: z.string().optional(),
+});
+
+type StudentFormValues = z.infer<typeof studentSchema>;
 
 export default function AddStudent() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    birthDate: "",
-    belt: "white",
-    status: "trial",
-    membershipStatus: "active",
-    membershipPlanId: "",
-  });
+  const { profile, organization } = useAuth();
 
-  const { data: membershipPlans } = useQuery({
-    queryKey: ["membershipPlans"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("membership_plans")
-        .select("*")
-        .order("price");
-      
-      if (error) throw error;
-      return data;
+  const form = useForm<StudentFormValues>({
+    resolver: zodResolver(studentSchema),
+    defaultValues: {
+      name: "",
+      email: "",
+      phone: "",
     },
   });
 
   const addStudentMutation = useMutation({
     mutationFn: async (newStudent: {
       name: string;
-      email: string;
-      phone: string;
-      birth_date: string | null;
-      belt: string;
+      email: string | null;
+      phone: string | null;
       status: string;
+      belt: string;
+      stripes: number;
       join_date: string;
-      membership_status: string | null;
-      membership_plan_id: number | null;
       organization_id: string;
     }) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("students")
-        .insert([newStudent]);
-      
+        .insert([newStudent])
+        .select("id")
+        .single();
+
       if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       toast.success("Student added successfully!");
@@ -66,178 +83,114 @@ export default function AddStudent() {
     },
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validation
-    if (!formData.name || !formData.email || !formData.phone) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
-
+  const onSubmit = (values: StudentFormValues) => {
     if (!profile?.organization_id) {
       toast.error("Organization not found");
       return;
     }
 
     const studentData = {
-      name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      birth_date: formData.birthDate || null,
-      belt: formData.belt,
-      status: formData.status,
-      join_date: new Date().toISOString().split('T')[0],
-      membership_status: formData.status === 'student' ? formData.membershipStatus : null,
-      membership_plan_id: formData.status === 'student' && formData.membershipPlanId ? parseInt(formData.membershipPlanId) : null,
+      name: values.name,
+      email: values.email || null,
+      phone: values.phone || null,
+      status: "none",
+      belt: "white",
+      stripes: 0,
+      join_date: getTodayInTimezone(organization?.timezone),
       organization_id: profile.organization_id,
     };
 
     addStudentMutation.mutate(studentData);
   };
 
-  const handleChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight text-foreground">Add New Student</h2>
-        <p className="text-muted-foreground">Register a new student to your academy</p>
+    <div className="max-w-lg mx-auto">
+      <div className="mb-6">
+        <h2 className="text-3xl font-bold tracking-tight text-foreground">
+          Add New Student
+        </h2>
+        <p className="text-muted-foreground">
+          Register a new student to your academy.
+        </p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Student Information</CardTitle>
+          <CardDescription>
+            Fill out the form below to add a new student.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="name">Full Name *</Label>
-              <Input
-                id="name"
-                placeholder="Enter student's full name"
-                value={formData.name}
-                onChange={(e) => handleChange("name", e.target.value)}
-                required
-              />
-            </div>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+              <div className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Full Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Enter student's full name"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="tel"
+                          placeholder="Enter phone number"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="email"
+                          placeholder="student@email.com"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="student@email.com"
-                value={formData.email}
-                onChange={(e) => handleChange("email", e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone *</Label>
-              <MaskedInput
-                id="phone"
-                mask="(00) 00000-0000"
-                placeholder="Enter student's phone number"
-                value={formData.phone}
-                onChange={(value) => handleChange("phone", value)}
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="birthDate">Birth Date</Label>
-              <Input
-                id="birthDate"
-                type="date"
-                value={formData.birthDate}
-                onChange={(e) => handleChange("birthDate", e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="belt">Starting Belt</Label>
-              <Select value={formData.belt} onValueChange={(value) => handleChange("belt", value)}>
-                <SelectTrigger id="belt">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="white">White Belt</SelectItem>
-                  <SelectItem value="blue">Blue Belt</SelectItem>
-                  <SelectItem value="purple">Purple Belt</SelectItem>
-                  <SelectItem value="brown">Brown Belt</SelectItem>
-                  <SelectItem value="black">Black Belt</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select value={formData.status} onValueChange={(value) => handleChange("status", value)}>
-                <SelectTrigger id="status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="trial">Trial</SelectItem>
-                  <SelectItem value="student">Student</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {formData.status === "student" && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="membershipPlan">Membership Plan</Label>
-                  <Select
-                    value={formData.membershipPlanId}
-                    onValueChange={(value) => handleChange("membershipPlanId", value)}
-                  >
-                    <SelectTrigger id="membershipPlan">
-                      <SelectValue placeholder="Select a plan" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {membershipPlans?.map((plan) => (
-                        <SelectItem key={plan.id} value={plan.id.toString()}>
-                          {plan.name} - {plan.price === "0" || plan.price === "0.00" ? "Free" : plan.price}/{plan.period}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="membershipStatus">Membership Status</Label>
-                  <Select value={formData.membershipStatus} onValueChange={(value) => handleChange("membershipStatus", value)}>
-                    <SelectTrigger id="membershipStatus">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="frozen">Frozen</SelectItem>
-                      <SelectItem value="inactive">Inactive</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
-
-            <div className="flex gap-4 pt-4">
-              <Button type="submit" className="flex-1">
-                Add Student
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate("/students")}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
+              <div className="flex gap-4 pt-4">
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={addStudentMutation.isPending}
+                >
+                  {addStudentMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Add Student
+                </Button>
+              </div>
+            </form>
+          </Form>
         </CardContent>
       </Card>
     </div>

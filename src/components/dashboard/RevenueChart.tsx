@@ -26,6 +26,7 @@ export default function RevenueChart() {
       const { data, error } = await supabase
         .from("payments")
         .select("date, amount")
+        .eq("organization_id", organization.id)
         .gte("date", twelveMonthsAgo);
       if (error) throw error;
       return data;
