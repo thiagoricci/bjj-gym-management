@@ -120,7 +120,7 @@ serve(async (req) => {
     }));
 
     // Build the Stripe Connect OAuth URL
-    // This allows users to connect their existing Stripe account
+    // This allows users to connect their EXISTING Stripe account only (no new account creation)
     const oauthUrl = new URL("https://connect.stripe.com/oauth/authorize");
     oauthUrl.searchParams.set("response_type", "code");
     oauthUrl.searchParams.set("client_id", stripeClientId);
@@ -128,7 +128,10 @@ serve(async (req) => {
     oauthUrl.searchParams.set("redirect_uri", returnUrl);
     oauthUrl.searchParams.set("state", state);
     // stripe_landing=login forces the login flow instead of registration
+    // This ensures users can only connect existing Stripe accounts, not create new ones
     oauthUrl.searchParams.set("stripe_landing", "login");
+    // always_prompt=true ensures the user is always asked to authorize, even if previously connected
+    oauthUrl.searchParams.set("always_prompt", "true");
 
     return new Response(
       JSON.stringify({

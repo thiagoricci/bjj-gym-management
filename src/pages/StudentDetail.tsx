@@ -510,38 +510,24 @@ export default function StudentDetail() {
         data: { session },
       } = await supabase.auth.getSession();
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cancel-subscription`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${session?.access_token}`,
-          },
-          body: JSON.stringify({
-            studentId: id,
-            organizationId: organization.id,
-            reason,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        console.error("cancel-subscription failed", response.status, errorBody);
-        let errorMessage = "Failed to cancel subscription";
-        try {
-          const jsonError = JSON.parse(errorBody);
-          if (jsonError.error) {
-            errorMessage = jsonError.error;
-          }
-        } catch (e) {
-          errorMessage = errorBody.substring(0, 100);
-        }
-        throw new Error(errorMessage);
+      if (!organization?.id) {
+        throw new Error("Organization ID is missing");
       }
 
-      return response.json();
+      const { data, error } = await supabase.functions.invoke("cancel-subscription", {
+        body: {
+          studentId: id,
+          organizationId: organization.id,
+          reason,
+        },
+      });
+
+      if (error) {
+        console.error("cancel-subscription failed", error);
+        throw new Error(error.message || "Failed to cancel subscription");
+      }
+
+      return data;
     },
   });
 

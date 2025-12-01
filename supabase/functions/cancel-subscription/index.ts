@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
-import Stripe from "https://esm.sh/stripe@12.3.0";
+import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
@@ -26,7 +26,22 @@ serve(async (req: Request) => {
 
   try {
     console.log("=== CANCEL SUBSCRIPTION FUNCTION INVOKED ===");
-    const { studentId, organizationId, reason } = await req.json();
+    
+    let body;
+    try {
+      body = await req.json();
+    } catch (e) {
+      console.error("Error parsing request body:", e);
+      return new Response(
+        JSON.stringify({ error: "Invalid request body" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    const { studentId, organizationId, reason } = body;
     console.log("Request body:", { studentId, organizationId, reason });
 
     if (!studentId || !organizationId) {
@@ -95,18 +110,26 @@ serve(async (req: Request) => {
 
     // List all active subscriptions for this customer on the connected account
     console.log(`Listing subscriptions for customer: ${student.stripe_customer_id}`);
-    const subscriptions = await stripe.subscriptions.list({
+    const activeSubscriptions = await stripe.subscriptions.list({
       customer: student.stripe_customer_id,
       status: "active",
     }, {
       stripeAccount: organization.stripe_account_id,
     });
 
-    console.log(`Found ${subscriptions.data.length} active subscription(s)`);
+    const trialingSubscriptions = await stripe.subscriptions.list({
+      customer: student.stripe_customer_id,
+      status: "trialing",
+    }, {
+      stripeAccount: organization.stripe_account_id,
+    });
+
+    const allSubscriptions = [...activeSubscriptions.data, ...trialingSubscriptions.data];
+    console.log(`Found ${allSubscriptions.length} active/trialing subscription(s)`);
 
     // Cancel all active subscriptions
     const cancelledSubscriptions = [];
-    for (const subscription of subscriptions.data) {
+    for (const subscription of allSubscriptions) {
       console.log(`Cancelling subscription: ${subscription.id}`);
       
       // Cancel immediately (not at period end) since the student is frozen/inactive

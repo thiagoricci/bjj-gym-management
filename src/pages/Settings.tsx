@@ -1,9 +1,21 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Building2, MapPin, Globe, Save, CreditCard, Link, Unlink, Loader2, ExternalLink } from "lucide-react";
+import { Building2, MapPin, Globe, Save, CreditCard, Link, Unlink, Loader2, ExternalLink, Lock, Mail, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Card,
   CardContent,
@@ -262,8 +274,245 @@ export default function Settings() {
       </Card>
 
 
+      <AccountSettingsCard />
       <StripeConnectCard />
+      <DangerZoneCard />
     </div>
+  );
+}
+
+function DangerZoneCard() {
+  const { signOut, session } = useAuth();
+  const navigate = useNavigate();
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('delete-account', {
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast.success("Account deleted successfully");
+      await signOut();
+      navigate("/");
+    } catch (error: any) {
+      console.error("Error deleting account:", error);
+      toast.error(error.message || "Failed to delete account");
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <Card className="border-destructive/50">
+      <CardHeader>
+        <CardTitle className="text-destructive">Danger Zone</CardTitle>
+        <CardDescription>
+          Irreversible actions for your account and organization.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-6 w-6 text-destructive" />
+            <div>
+              <h3 className="font-semibold text-destructive">
+                Delete Account
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Permanently delete your account, organization, and all related data.
+              </p>
+            </div>
+          </div>
+          
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={deleting}>
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete Account"}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete your
+                  account, organization, students, memberships, and remove your
+                  data from our servers.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteAccount}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  Delete Account
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AccountSettingsCard() {
+  const { user } = useAuth();
+  const [loadingEmail, setLoadingEmail] = useState(false);
+  const [loadingPassword, setLoadingPassword] = useState(false);
+
+  const emailForm = useForm<{ email: string }>({
+    resolver: zodResolver(z.object({ email: z.string().email("Invalid email address") })),
+    defaultValues: {
+      email: user?.email || "",
+    },
+  });
+
+  const passwordForm = useForm({
+    resolver: zodResolver(
+      z.object({
+        password: z.string().min(6, "Password must be at least 6 characters"),
+        confirmPassword: z.string(),
+      }).refine((data) => data.password === data.confirmPassword, {
+        message: "Passwords do not match",
+        path: ["confirmPassword"],
+      })
+    ),
+    defaultValues: {
+      password: "",
+      confirmPassword: "",
+    },
+  });
+
+  const onUpdateEmail = async (data: { email: string }) => {
+    setLoadingEmail(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ email: data.email });
+      if (error) throw error;
+      toast.success("Check your email to confirm the change");
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setLoadingEmail(false);
+    }
+  };
+
+  const onUpdatePassword = async (data: any) => {
+    setLoadingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: data.password });
+      if (error) throw error;
+      toast.success("Password updated successfully");
+      passwordForm.reset();
+    } catch (error: any) {
+      toast.error(error.message);
+    } finally {
+      setLoadingPassword(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Account Security</CardTitle>
+        <CardDescription>
+          Update your email address and password.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <Form {...emailForm}>
+          <form onSubmit={emailForm.handleSubmit(onUpdateEmail)} className="space-y-4">
+            <FormField
+              control={emailForm.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email Address</FormLabel>
+                  <div className="flex gap-2">
+                    <FormControl>
+                      <div className="flex-1 flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <Input {...field} type="email" />
+                      </div>
+                    </FormControl>
+                    <Button type="submit" disabled={loadingEmail}>
+                      {loadingEmail ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update Email"}
+                    </Button>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </form>
+        </Form>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-background px-2 text-muted-foreground">
+              Change Password
+            </span>
+          </div>
+        </div>
+
+        <Form {...passwordForm}>
+          <form onSubmit={passwordForm.handleSubmit(onUpdatePassword)} className="space-y-4">
+            <FormField
+              control={passwordForm.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>New Password</FormLabel>
+                  <FormControl>
+                    <div className="flex items-center gap-2">
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                      <Input {...field} type="password" placeholder="New password" />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={passwordForm.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Confirm Password</FormLabel>
+                  <FormControl>
+                    <div className="flex items-center gap-2">
+                      <Lock className="h-4 w-4 text-muted-foreground" />
+                      <Input {...field} type="password" placeholder="Confirm new password" />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="flex justify-end">
+              <Button type="submit" disabled={loadingPassword}>
+                {loadingPassword ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  "Update Password"
+                )}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -428,13 +677,13 @@ function StripeConnectCard() {
               ) : (
                 <>
                   <Link className="mr-2 h-4 w-4" />
-                  Connect with Stripe
+                  Log in to Stripe
                 </>
               )}
             </Button>
 
             <p className="text-xs text-muted-foreground text-center">
-              You'll be redirected to Stripe to create or connect your account.
+              You'll be redirected to log in to your existing Stripe account.
               This allows you to securely accept payments from your students.
             </p>
           </>

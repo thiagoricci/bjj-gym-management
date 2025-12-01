@@ -14,9 +14,9 @@ import { Button } from "@/components/ui/button";
  
  export default function Dashboard() {
    const { organization } = useAuth();
-  const { data: students, isLoading } = useQuery({
-    queryKey: ["students"],
-    queryFn: async () => {
+   const { data: students, isLoading } = useQuery({
+     queryKey: ["students"],
+     queryFn: async () => {
       const { data, error } = await supabase
         .from("students")
         .select("*")

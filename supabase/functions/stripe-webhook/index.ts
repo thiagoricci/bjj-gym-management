@@ -60,6 +60,41 @@ serve(async (req) => {
         organizationId,
       });
 
+      // Handle Platform Subscription
+      if (sessionType === "platform_subscription") {
+        console.log("=== PROCESSING PLATFORM SUBSCRIPTION ===");
+        if (!organizationId) {
+          console.error("Missing organizationId in platform subscription metadata");
+          return new Response("Error: Missing organizationId", { status: 400 });
+        }
+
+        const subscriptionId = session.subscription as string;
+        const customerId = session.customer as string;
+
+        // Upsert into platform_subscriptions
+        const { error } = await supabaseAdmin
+          .from("platform_subscriptions")
+          .upsert({
+            organization_id: organizationId,
+            stripe_subscription_id: subscriptionId,
+            stripe_customer_id: customerId,
+            status: "active",
+            current_period_start: new Date().toISOString(), // Approximate, webhook will update
+            current_period_end: new Date().toISOString(), // Approximate
+            plan_id: "standard", // Hardcoded for now
+          }, { onConflict: "organization_id" });
+
+        if (error) {
+          console.error("Error updating platform_subscriptions:", error);
+          return new Response(`Database Error: ${error.message}`, { status: 500 });
+        }
+
+        console.log(`Successfully activated platform subscription for org: ${organizationId}`);
+        return new Response(JSON.stringify({ received: true, type: "platform_subscription" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // Handle SETUP sessions (adding payment method only, no charge)
       if (session.mode === "setup") {
         console.log("=== PROCESSING SETUP SESSION (Payment Method Only) ===");
@@ -191,6 +226,30 @@ serve(async (req) => {
       }
 
       console.log(`Successfully activated membership for student: ${studentId}`);
+    } else if (event.type === "customer.subscription.updated" || event.type === "customer.subscription.deleted") {
+      const subscription = event.data.object as Stripe.Subscription;
+      const { organizationId } = subscription.metadata || {};
+
+      // Only process if it's a platform subscription (has organizationId metadata)
+      if (organizationId) {
+        console.log(`Processing subscription update for org: ${organizationId}, status: ${subscription.status}`);
+        
+        const { error } = await supabaseAdmin
+          .from("platform_subscriptions")
+          .update({
+            status: subscription.status,
+            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            cancel_at_period_end: subscription.cancel_at_period_end,
+          })
+          .eq("stripe_subscription_id", subscription.id);
+
+        if (error) {
+          console.error("Error updating platform subscription status:", error);
+          return new Response(`Database Error: ${error.message}`, { status: 500 });
+        }
+        console.log("Platform subscription updated successfully");
+      }
     } else {
       console.log(`Received unhandled event type: ${event.type}`);
     }
