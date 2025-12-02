@@ -31,7 +31,7 @@ export default function StripeConnectCallback() {
       if (hasProcessedRef.current) {
         return;
       }
-      
+
       // Check for OAuth error (user denied access)
       const error = searchParams.get("error");
       const errorDescription = searchParams.get("error_description");
@@ -59,6 +59,16 @@ export default function StripeConnectCallback() {
         return;
       }
 
+      // Check if we've already processed this specific code in this session
+      // This persists across component remounts (unlike useRef)
+      const processedCodeKey = `stripe_connect_processed_${code}`;
+      if (sessionStorage.getItem(processedCodeKey)) {
+        hasProcessedRef.current = true;
+        setStatus("success"); // Assume success if we've already processed it
+        setBusinessName("your account"); // Generic name since we don't have the data
+        return;
+      }
+
       if (!session?.access_token) {
         // Don't mark as processed - we might get session later
         setStatus("error");
@@ -69,6 +79,7 @@ export default function StripeConnectCallback() {
       try {
         // Mark as processed BEFORE making the API call to prevent race conditions
         hasProcessedRef.current = true;
+        sessionStorage.setItem(processedCodeKey, "true");
         
         // Call the complete-stripe-connect function to exchange code for account
         // Note: redirect_uri is NOT required for the token exchange per Stripe OAuth docs
@@ -96,7 +107,8 @@ export default function StripeConnectCallback() {
         toast.success("Stripe account connected successfully!");
         
         // Refresh the profile in the background - don't await to prevent re-render loops
-        refreshProfile().catch(console.error);
+        // Pass true to silent mode to avoid triggering global loading state which would unmount this component
+        refreshProfile(true).catch(console.error);
       } catch (err: unknown) {
         console.error("Error completing Stripe Connect:", err);
         setStatus("error");

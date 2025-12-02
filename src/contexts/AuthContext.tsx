@@ -25,7 +25,7 @@ type AuthContextType = {
   organization: Organization | null;
   loading: boolean;
   signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: (silent?: boolean) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -108,9 +108,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const refreshProfile = async () => {
+  const refreshProfile = async (silent = false) => {
     if (user) {
-      setLoading(true);
+      if (!silent) setLoading(true);
       await fetchProfile(user.id);
     }
   };

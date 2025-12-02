@@ -5,10 +5,12 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { Loader2, CheckCircle, XCircle, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function PaymentSuccess() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { session } = useAuth();
   const searchParams = new URLSearchParams(location.search);
   const sessionId = searchParams.get("session_id");
   const studentId = searchParams.get("student_id");
@@ -20,6 +22,9 @@ export default function PaymentSuccess() {
     mutationFn: async (params: { sessionId: string; studentId: string }) => {
       const { data, error } = await supabase.functions.invoke("verify-payment-and-update-student", {
         body: params,
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
       });
 
       if (error) {
