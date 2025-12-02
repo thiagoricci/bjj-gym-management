@@ -599,7 +599,7 @@ function StripeConnectCard() {
       <CardHeader>
         <CardTitle>Stripe Integration</CardTitle>
         <CardDescription>
-          Connect your Stripe account to accept payments from students.
+          Connect your existing Stripe account to accept payments from students. You must already have a Stripe account to connect.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -658,7 +658,7 @@ function StripeConnectCard() {
                     Stripe Not Connected
                   </h3>
                   <p className="text-sm text-muted-foreground">
-                    Connect your Stripe account to start accepting payments.
+                    Log in to your existing Stripe account to start accepting payments.
                   </p>
                 </div>
               </div>
@@ -677,14 +677,14 @@ function StripeConnectCard() {
               ) : (
                 <>
                   <Link className="mr-2 h-4 w-4" />
-                  Log in to Stripe
+                  Connect Existing Stripe Account
                 </>
               )}
             </Button>
 
             <p className="text-xs text-muted-foreground text-center">
-              You'll be redirected to log in to your existing Stripe account.
-              This allows you to securely accept payments from your students.
+              You'll be redirected to log in to your <strong>existing Stripe account</strong>.
+              Don't have a Stripe account? <a href="https://dashboard.stripe.com/register" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Create one first</a>, then return here to connect it.
             </p>
           </>
         )}
