@@ -229,7 +229,7 @@ export default function Landing() {
                 Focus on what matters most—teaching and growing your academy
               </p>
             </div>
-            <div className="bg-card rounded-2xl p-8 md:p-12 shadow-lg border">
+            <div className="bg-card rounded-2xl p-8 md:p-12 shadow-lg border max-w-xl mx-auto">
               <ul className="space-y-5">
                 {benefits.map((benefit, index) => (
                   <li key={index} className="flex items-start gap-4">
@@ -370,11 +370,12 @@ export default function Landing() {
               >
                 Login
               </button>
-              <button 
-                onClick={() => navigate("/signup")}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              <button
+                onClick={handleSubscribe}
+                disabled={loading}
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               >
-                Sign Up
+                {loading ? "Processing..." : "Sign Up"}
               </button>
             </div>
           </div>

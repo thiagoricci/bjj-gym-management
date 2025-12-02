@@ -564,10 +564,6 @@ function StripeConnectCard() {
       return;
     }
 
-    if (!confirm("Are you sure you want to disconnect your Stripe account? You will no longer be able to accept payments until you reconnect.")) {
-      return;
-    }
-
     setDisconnecting(true);
 
     try {
@@ -629,24 +625,44 @@ function StripeConnectCard() {
                 <ExternalLink className="mr-2 h-4 w-4" />
                 Open Stripe Dashboard
               </Button>
-              <Button
-                variant="destructive"
-                onClick={handleDisconnectStripe}
-                disabled={disconnecting}
-                className="flex-1"
-              >
-                {disconnecting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Disconnecting...
-                  </>
-                ) : (
-                  <>
-                    <Unlink className="mr-2 h-4 w-4" />
-                    Disconnect Stripe
-                  </>
-                )}
-              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="destructive"
+                    disabled={disconnecting}
+                    className="flex-1"
+                  >
+                    {disconnecting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Disconnecting...
+                      </>
+                    ) : (
+                      <>
+                        <Unlink className="mr-2 h-4 w-4" />
+                        Disconnect Stripe
+                      </>
+                    )}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Disconnect Stripe Account?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to disconnect your Stripe account? You will no longer be able to accept payments until you reconnect.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDisconnectStripe}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Disconnect
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </>
         ) : (

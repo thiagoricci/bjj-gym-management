@@ -12,6 +12,29 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [signupLoading, setSignupLoading] = useState(false);
+
+  const handleSubscribe = async () => {
+    setSignupLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "create-platform-checkout-session",
+        {
+          body: { isAnonymous: true },
+        }
+      );
+
+      if (error) throw error;
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (error: any) {
+      console.error("Error creating checkout session:", error);
+      toast.error(error.message || "Failed to start subscription");
+    } finally {
+      setSignupLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,9 +104,13 @@ export default function Login() {
         <CardFooter className="flex justify-center">
           <p className="text-sm text-muted-foreground">
             Don't have an account?{" "}
-            <Link to="/signup" className="text-primary hover:underline">
-              Sign up
-            </Link>
+            <button
+              onClick={handleSubscribe}
+              disabled={signupLoading}
+              className="text-primary hover:underline bg-transparent border-0 p-0 h-auto font-normal disabled:opacity-50"
+            >
+              {signupLoading ? "Processing..." : "Sign up"}
+            </button>
           </p>
         </CardFooter>
       </Card>
