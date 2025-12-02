@@ -30,4 +30,4 @@ This is a web-based management application designed for Brazilian Jiu-Jitsu (BJJ
 
 ## Current Status
 
-The project has evolved into a comprehensive BJJ academy management system with full Stripe payment integration. The system includes complete student lifecycle management, payment processing, attendance tracking, and membership management. All core features are now implemented with production-ready functionality including authentication, payment verification, and comprehensive student profiles.
+The project has evolved into a comprehensive BJJ academy management system with full Stripe payment integration. The system includes complete student lifecycle management, payment processing, attendance tracking, and membership management. All core features are now implemented with production-ready functionality including authentication, payment verification, and comprehensive student profiles. Recent updates have introduced platform administration capabilities and enforced strict multi-tenancy security.
