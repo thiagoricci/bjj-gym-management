@@ -111,6 +111,13 @@ export default function StudentDetail() {
     },
     onSuccess: async (data) => {
       const { sessionId, stripeAccountId } = data;
+      
+      console.log("Initializing Stripe with:", {
+        keyPrefix: import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.substring(0, 8),
+        stripeAccountId,
+        sessionId
+      });
+
       // When using Stripe Connect, we need to pass the connected account ID
       const stripe = await loadStripe(
         import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY,
@@ -123,6 +130,7 @@ export default function StudentDetail() {
           toast.error(`Payment method setup redirect failed: ${error.message}`);
         }
       } else {
+        console.error("Stripe initialization failed:", { stripe: !!stripe, sessionId });
         toast.error("Failed to initialize Stripe or missing session ID.");
       }
     },
@@ -379,6 +387,13 @@ export default function StudentDetail() {
     },
     onSuccess: async (data) => {
       const { sessionId, stripeAccountId } = data;
+      
+      console.log("Initializing Stripe Checkout with:", {
+        keyPrefix: import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY?.substring(0, 8),
+        stripeAccountId,
+        sessionId
+      });
+
       // When using Stripe Connect, we need to pass the connected account ID
       const stripe = await loadStripe(
         import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY,
@@ -391,6 +406,7 @@ export default function StudentDetail() {
           toast.error(`Payment redirect failed: ${error.message}`);
         }
       } else {
+        console.error("Stripe initialization failed:", { stripe: !!stripe, sessionId });
         toast.error("Failed to initialize Stripe or missing session ID.");
       }
     },
