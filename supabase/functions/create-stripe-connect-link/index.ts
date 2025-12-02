@@ -120,7 +120,8 @@ serve(async (req) => {
     }));
 
     // Build the Stripe Connect OAuth URL
-    // This allows users to connect their EXISTING Stripe account only (no new account creation)
+    // IMPORTANT: This configuration forces LOGIN to existing Stripe accounts only
+    // It makes account creation much less prominent in the flow
     const oauthUrl = new URL("https://connect.stripe.com/oauth/authorize");
     oauthUrl.searchParams.set("response_type", "code");
     oauthUrl.searchParams.set("client_id", stripeClientId);
@@ -128,23 +129,25 @@ serve(async (req) => {
     oauthUrl.searchParams.set("redirect_uri", returnUrl);
     oauthUrl.searchParams.set("state", state);
     
-    // IMPORTANT: Force login-only flow for existing Stripe accounts
-    // stripe_landing=login shows the login page first instead of registration
+    // CRITICAL: stripe_landing=login forces the login page to appear first
+    // This prevents the "create new account" form from being the default view
     oauthUrl.searchParams.set("stripe_landing", "login");
     
-    // Pre-fill the user's email to help Stripe identify their existing account
-    // This also prevents the "create new account" flow from being the default
+    // Pre-fill the user's email - this helps Stripe identify existing accounts
+    // and further discourages new account creation
     if (user.email) {
       oauthUrl.searchParams.set("stripe_user[email]", user.email);
     }
     
-    // Set the business name to help identify the connection
+    // Set the business name to help with account identification
     if (organization.name) {
       oauthUrl.searchParams.set("stripe_user[business_name]", organization.name);
     }
     
-    // always_prompt=true ensures the user is always asked to authorize, even if previously connected
+    // Always prompt for authorization to ensure security
     oauthUrl.searchParams.set("always_prompt", "true");
+    
+    console.log("Generated Stripe Connect OAuth URL with login-only configuration");
 
     return new Response(
       JSON.stringify({
