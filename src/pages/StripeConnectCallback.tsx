@@ -37,6 +37,7 @@ export default function StripeConnectCallback() {
       const errorDescription = searchParams.get("error_description");
       
       if (error) {
+        hasProcessedRef.current = true; // Mark as processed for error cases too
         if (error === "access_denied") {
           setStatus("denied");
           setErrorMessage(errorDescription || "You denied access to your Stripe account");
@@ -52,12 +53,14 @@ export default function StripeConnectCallback() {
       const state = searchParams.get("state");
 
       if (!code) {
+        hasProcessedRef.current = true; // Mark as processed
         setStatus("error");
         setErrorMessage("No authorization code provided");
         return;
       }
 
       if (!session?.access_token) {
+        // Don't mark as processed - we might get session later
         setStatus("error");
         setErrorMessage("Not authenticated");
         return;
@@ -87,22 +90,25 @@ export default function StripeConnectCallback() {
           throw new Error(data.error);
         }
 
-        // Success! Refresh the profile to get the updated organization
-        await refreshProfile();
+        // Success! Set status first to stop any re-renders from causing issues
         setStatus("success");
         setBusinessName(data?.businessName || "");
         toast.success("Stripe account connected successfully!");
+        
+        // Refresh the profile in the background - don't await to prevent re-render loops
+        refreshProfile().catch(console.error);
       } catch (err: unknown) {
         console.error("Error completing Stripe Connect:", err);
         setStatus("error");
         setErrorMessage(err instanceof Error ? err.message : "An unexpected error occurred");
-        // Reset the flag on error so user can retry
-        hasProcessedRef.current = false;
+        // Don't reset the flag - the code is already consumed
+        // User will need to start a new OAuth flow via "Try Again"
       }
     };
 
     handleCallback();
-  }, [searchParams, session, refreshProfile]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, session?.access_token]);
 
   const handleRetryConnect = async () => {
     if (!session?.access_token) {
