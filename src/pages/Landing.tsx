@@ -103,9 +103,14 @@ export default function Landing() {
           <h1 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             Jiu-Jitsu Manager
           </h1>
-          <Button variant="ghost" onClick={() => navigate("/login")}>
-            Login
-          </Button>
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" onClick={() => navigate("/documentation")}>
+              Documentation
+            </Button>
+            <Button variant="ghost" onClick={() => navigate("/login")}>
+              Login
+            </Button>
+          </div>
         </div>
       </header>
 

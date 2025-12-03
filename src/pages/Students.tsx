@@ -5,6 +5,7 @@ import {
   Phone,
   MoreHorizontal,
   ArrowUpDown,
+  Upload,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +39,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { formatDate } from "@/lib/date";
+import { formatDate, getTodayInTimezone } from "@/lib/date";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   AlertDialog,
@@ -50,11 +51,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import ImportStudentsDialog from "@/components/ImportStudentsDialog";
 
 export default function Students() {
   const { organization } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [studentToDelete, setStudentToDelete] = useState<string | null>(null);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [sortConfig, setSortConfig] = useState({
     key: "join_date",
     direction: "desc",
@@ -76,6 +79,36 @@ export default function Students() {
     },
     onError: (error) => {
       toast.error(`Error deleting student: ${error.message}`);
+    },
+  });
+
+  const importStudentsMutation = useMutation({
+    mutationFn: async (students: any[]) => {
+      const studentsToInsert = students.map(student => ({
+        name: student.name,
+        email: student.email || null,
+        phone: student.phone || null,
+        status: "none",
+        belt: "white",
+        stripes: 0,
+        join_date: getTodayInTimezone(organization?.timezone),
+        organization_id: organization!.id,
+      }));
+
+      const { data, error } = await supabase
+        .from("students")
+        .insert(studentsToInsert);
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["students"] });
+      toast.success("Students imported successfully");
+      setIsImportDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error(`Error importing students: ${error.message}`);
     },
   });
 
@@ -145,6 +178,10 @@ export default function Students() {
               className="pl-10"
             />
           </div>
+          <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Import
+          </Button>
         </div>
       </div>
 
@@ -325,6 +362,12 @@ export default function Students() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ImportStudentsDialog
+        isOpen={isImportDialogOpen}
+        onClose={() => setIsImportDialogOpen(false)}
+        onImport={(students) => importStudentsMutation.mutate(students)}
+      />
     </div>
   );
 }

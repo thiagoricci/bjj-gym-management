@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, CreditCard, CalendarCheck, Calendar, Settings } from "lucide-react";
+import { LayoutDashboard, Users, CreditCard, CalendarCheck, Calendar, Settings, HelpCircle } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -23,6 +23,7 @@ const items = [
   { title: "Attendance", url: "/attendance", icon: CalendarCheck },
   { title: "Schedule", url: "/schedule", icon: Calendar },
   { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Help Center", url: "/help-center", icon: HelpCircle },
 ];
 
 export function AppSidebar() {

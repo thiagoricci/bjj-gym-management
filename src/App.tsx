@@ -26,6 +26,8 @@ import PasswordRecovery from "./pages/PasswordRecovery";
 import ResetPassword from "./pages/ResetPassword";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
+import Documentation from "./pages/Documentation";
+import HelpCenter from "./pages/HelpCenter";
 import { AuthProvider } from "./contexts/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -49,6 +51,7 @@ const App = () => (
             <Route path="/admin" element={<AdminDashboard />} />
 
             <Route path="/" element={<Landing />} />
+            <Route path="/documentation" element={<Documentation />} />
             <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/students" element={<ProtectedRoute><Layout><Students /></Layout></ProtectedRoute>} />
             <Route path="/student/:id" element={<ProtectedRoute><Layout><StudentDetail /></Layout></ProtectedRoute>} />
@@ -59,6 +62,7 @@ const App = () => (
             <Route path="/attendance" element={<ProtectedRoute><Layout><Attendance /></Layout></ProtectedRoute>} />
             <Route path="/schedule" element={<ProtectedRoute><Layout><Schedule /></Layout></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
+            <Route path="/help-center" element={<ProtectedRoute><Layout><HelpCenter /></Layout></ProtectedRoute>} />
             <Route path="/payment-success" element={<ProtectedRoute><Layout><PaymentSuccess /></Layout></ProtectedRoute>} />
             <Route path="/payment-cancelled" element={<ProtectedRoute><Layout><PaymentCancelled /></Layout></ProtectedRoute>} />
             <Route path="/stripe-connect-callback" element={<ProtectedRoute><StripeConnectCallback /></ProtectedRoute>} />
