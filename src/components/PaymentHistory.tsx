@@ -9,12 +9,73 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { formatDate } from "@/lib/date";
 import { useAuth } from "@/contexts/AuthContext";
-import { DollarSign } from "lucide-react";
+import { DollarSign, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
+
+interface Payment {
+  id: number;
+  student_id: number | null;
+  organization_id: string;
+  amount: number;
+  date: string;
+  status: string;
+  failure_reason: string | null;
+  created_at: string | null;
+}
 
 interface PaymentHistoryProps {
   studentId: string;
+}
+
+function StatusBadge({ status, failureReason }: { status: string; failureReason?: string | null }) {
+  switch (status) {
+    case "paid":
+      return (
+        <Badge className="bg-green-100 text-green-800 border-green-200 hover:bg-green-100">
+          <CheckCircle2 className="h-3 w-3 mr-1" />
+          Paid
+        </Badge>
+      );
+    case "failed":
+      if (failureReason) {
+        return (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Badge variant="destructive" className="cursor-help">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Failed
+                </Badge>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p className="max-w-xs">{failureReason}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      }
+      return (
+        <Badge variant="destructive">
+          <XCircle className="h-3 w-3 mr-1" />
+          Failed
+        </Badge>
+      );
+    default:
+      return (
+        <Badge variant="secondary">
+          <HelpCircle className="h-3 w-3 mr-1" />
+          <span className="capitalize">{status}</span>
+        </Badge>
+      );
+  }
 }
 
 export default function PaymentHistory({ studentId }: PaymentHistoryProps) {
@@ -31,7 +92,7 @@ export default function PaymentHistory({ studentId }: PaymentHistoryProps) {
         .order("date", { ascending: false });
 
       if (error) throw error;
-      return data;
+      return data as unknown as Payment[];
     },
   });
 
@@ -67,16 +128,26 @@ export default function PaymentHistory({ studentId }: PaymentHistoryProps) {
                 <TableHead>Date</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="hidden md:table-cell">Details</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {payments.map((payment) => (
-                <TableRow key={payment.id}>
+                <TableRow key={payment.id} className={payment.status === "failed" ? "bg-red-50/50" : ""}>
                   <TableCell>
                     {formatDate(payment.date, organization?.timezone)}
                   </TableCell>
                   <TableCell>${Number(payment.amount).toFixed(2)}</TableCell>
-                  <TableCell className="capitalize">{payment.status}</TableCell>
+                  <TableCell>
+                    <StatusBadge status={payment.status} failureReason={payment.failure_reason} />
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {payment.failure_reason && (
+                      <span className="text-sm text-muted-foreground truncate max-w-[200px] block">
+                        {payment.failure_reason}
+                      </span>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

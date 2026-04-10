@@ -250,6 +250,89 @@ serve(async (req) => {
         }
         console.log("Platform subscription updated successfully");
       }
+    } else if (event.type === "invoice.payment_failed") {
+      const invoice = event.data.object as Stripe.Invoice;
+      console.log("=== PROCESSING INVOICE PAYMENT FAILED ===");
+
+      const subscriptionId = invoice.subscription as string;
+      if (!subscriptionId) {
+        console.log("No subscription ID on invoice, skipping failed payment record");
+      } else {
+        const connectedAccountId = event.account;
+        let stripeOptions: { stripeAccount?: string } = {};
+        if (connectedAccountId) {
+          stripeOptions = { stripeAccount: connectedAccountId };
+        }
+
+        const subscription = await stripe.subscriptions.retrieve(
+          subscriptionId,
+          stripeOptions
+        );
+        const { studentId, planId, organizationId } = subscription.metadata || {};
+
+        if (!studentId || !organizationId) {
+          console.error("Missing studentId or organizationId in subscription metadata:", subscription.metadata);
+        } else {
+          const amount = invoice.amount_due ? invoice.amount_due / 100 : 0;
+
+          let failureReason = "Payment failed";
+          if (invoice.last_finalization_error?.message) {
+            failureReason = invoice.last_finalization_error.message;
+          }
+
+          console.log(`Recording failed payment for student: ${studentId}, amount: ${amount}, reason: ${failureReason}`);
+
+          const { data: paymentData, error: paymentError } = await supabaseAdmin
+            .from("payments")
+            .insert({
+              student_id: parseInt(studentId.toString()),
+              organization_id: organizationId,
+              amount: amount,
+              date: new Date().toISOString(),
+              status: "failed",
+              failure_reason: failureReason,
+            })
+            .select();
+
+          if (paymentError) {
+            console.error("Error recording failed payment:", JSON.stringify(paymentError));
+          } else {
+            console.log(`Failed payment recorded for student: ${studentId}`, paymentData);
+          }
+        }
+      }
+    } else if (event.type === "payment_intent.payment_failed") {
+      const paymentIntent = event.data.object as Stripe.PaymentIntent;
+      console.log("=== PROCESSING PAYMENT INTENT FAILED ===");
+
+      const { studentId, organizationId } = paymentIntent.metadata || {};
+
+      if (!studentId || !organizationId) {
+        console.log("No studentId/organizationId in payment_intent metadata, skipping");
+      } else {
+        const amount = paymentIntent.amount ? paymentIntent.amount / 100 : 0;
+        const failureReason = paymentIntent.last_payment_error?.message || "Payment failed";
+
+        console.log(`Recording failed payment intent for student: ${studentId}, amount: ${amount}, reason: ${failureReason}`);
+
+        const { data: paymentData, error: paymentError } = await supabaseAdmin
+          .from("payments")
+          .insert({
+            student_id: parseInt(studentId.toString()),
+            organization_id: organizationId,
+            amount: amount,
+            date: new Date().toISOString(),
+            status: "failed",
+            failure_reason: failureReason,
+          })
+          .select();
+
+        if (paymentError) {
+          console.error("Error recording failed payment intent:", JSON.stringify(paymentError));
+        } else {
+          console.log(`Failed payment intent recorded for student: ${studentId}`, paymentData);
+        }
+      }
     } else {
       console.log(`Received unhandled event type: ${event.type}`);
     }

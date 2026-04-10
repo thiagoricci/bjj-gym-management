@@ -253,6 +253,27 @@ serve(async (req: Request) => {
     } else {
       // Subscription creation failed or requires action
       const errorStatus = paymentIntent?.status || subscription.status;
+      const failureReason = paymentIntent?.last_payment_error?.message || "Subscription creation failed";
+
+      if (student.organization_id) {
+        const { error: paymentError } = await supabase
+          .from("payments")
+          .insert({
+            student_id: parseInt(studentId.toString()),
+            organization_id: student.organization_id,
+            amount: parseFloat(plan.price),
+            date: new Date().toISOString(),
+            status: "failed",
+            failure_reason: failureReason,
+          });
+
+        if (paymentError) {
+          console.error("Error recording failed payment:", JSON.stringify(paymentError));
+        } else {
+          console.log(`Failed payment recorded for student: ${studentId}`);
+        }
+      }
+
       return new Response(
         JSON.stringify({
           error: "Subscription creation failed or requires action",

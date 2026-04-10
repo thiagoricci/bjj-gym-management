@@ -151,6 +151,7 @@ export type Database = {
           amount: number
           created_at: string | null
           date: string
+          failure_reason: string | null
           id: number
           organization_id: string
           status: string
@@ -160,6 +161,7 @@ export type Database = {
           amount: number
           created_at?: string | null
           date: string
+          failure_reason?: string | null
           id?: number
           organization_id: string
           status?: string
@@ -169,6 +171,7 @@ export type Database = {
           amount?: number
           created_at?: string | null
           date?: string
+          failure_reason?: string | null
           id?: number
           organization_id?: string
           status?: string

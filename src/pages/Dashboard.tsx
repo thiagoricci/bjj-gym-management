@@ -8,6 +8,7 @@ import StudentGrowthChart from "@/components/dashboard/StudentGrowthChart";
 import RevenueChart from "@/components/dashboard/RevenueChart";
 import AttendanceChart from "@/components/dashboard/AttendanceChart";
 import BeltDistributionChart from "@/components/dashboard/BeltDistributionChart";
+import FailedPayments from "@/components/dashboard/FailedPayments";
 import { useAuth } from "@/contexts/AuthContext";
 import { toZonedTime } from "date-fns-tz";
 import { Button } from "@/components/ui/button";
@@ -141,6 +142,9 @@ import { Button } from "@/components/ui/button";
           trend={`${newTrialsThisMonthCount} new this month`}
         />
       </div>
+
+      {/* Failed Payments Alert */}
+      <FailedPayments />
 
       {/* Charts Grid */}
       <div className="grid gap-4 md:grid-cols-2">
