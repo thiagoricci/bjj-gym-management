@@ -228,31 +228,32 @@ export default function Students() {
                 </TableCell>
                 <TableCell>
                   <Badge
-                    variant={student.status === "trial" ? "secondary" : student.status === "none" || !student.status ? "secondary" : "default"}
                     className={cn(
-                      "text-xs",
-                      student.status === "student" &&
-                        student.membership_status === "active" &&
-                        "bg-green-500 hover:bg-green-600",
-                      student.status === "student" &&
-                        student.membership_status === "inactive" &&
-                        "bg-gray-500 hover:bg-gray-600",
-                      student.status === "student" &&
-                        student.membership_status === "frozen" &&
-                        "bg-yellow-500 hover:bg-yellow-600",
+                      "border-transparent text-xs",
+                      student.membership_status === "active" &&
+                        "bg-green-500 text-white hover:bg-green-600",
+                      student.membership_status === "inactive" &&
+                        "bg-gray-500 text-white hover:bg-gray-600",
+                      student.membership_status === "frozen" &&
+                        "bg-yellow-500 text-white hover:bg-yellow-600",
                       student.status === "trial" &&
-                        "bg-blue-100 text-blue-800 hover:bg-blue-200",
+                        "bg-blue-500 text-white hover:bg-blue-600",
                       (student.status === "none" || !student.status) &&
-                        "bg-gray-100 text-gray-800 hover:bg-gray-200"
+                        student.membership_status !== "inactive" &&
+                        student.membership_status !== "frozen" &&
+                        "bg-gray-400 text-white hover:bg-gray-500"
                     )}
                   >
-                    {student.status === "trial"
+                    {student.membership_status === "inactive"
+                      ? "Inactive"
+                      : student.membership_status === "frozen"
+                      ? "Frozen"
+                      : student.membership_status === "active"
+                      ? "Active"
+                      : student.status === "trial"
                       ? "Trial"
                       : student.status === "none" || !student.status
                       ? "None"
-                      : student.membership_status
-                      ? student.membership_status.charAt(0).toUpperCase() +
-                        student.membership_status.slice(1)
                       : "-"}
                   </Badge>
                 </TableCell>

@@ -563,6 +563,8 @@ export default function StudentDetail() {
         updates = { status: "trial", membership_status: null, membership_plan_id: null };
       } else if (newStatus === "none") {
         updates = { status: "none", membership_status: null, membership_plan_id: null };
+      } else if ((newStatus === "frozen" || newStatus === "inactive") && student?.status === "trial") {
+        updates = { status: "none", membership_status: newStatus, membership_plan_id: null };
       } else if (newStatus === "frozen" || newStatus === "inactive") {
         // Cancel any active Stripe subscriptions immediately
         console.log(`Cancelling subscription for status change to: ${newStatus}`);
@@ -691,7 +693,7 @@ export default function StudentDetail() {
                 // Determine the current effective status
                 const isActiveStudent = student.status === "student" && student.membership_status === "active";
                 const isTrial = student.status === "trial";
-                const isNone = student.status === "none";
+                const isNone = student.status === "none" && student.membership_status !== "inactive" && student.membership_status !== "frozen";
                 const isFrozen = student.membership_status === "frozen";
                 const isInactive = student.membership_status === "inactive";
                 
@@ -741,11 +743,12 @@ export default function StudentDetail() {
                           <SelectItem value="active">Active</SelectItem>
                         </>
                       )}
-                      {/* Status "trial": Show only Active (upgrade path) */}
+                      {/* Status "trial": Show Active (upgrade) and Inactive (didn't sign up) */}
                       {isTrial && (
                         <>
                           <SelectItem value="trial">Trial</SelectItem>
                           <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive</SelectItem>
                         </>
                       )}
                       {/* Status "active": Show only Frozen and Inactive (no going back to Trial) */}
