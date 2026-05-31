@@ -1,5 +1,5 @@
 import Stripe from "https://esm.sh/stripe@12.3.0";
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
+import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 
 /**
  * Upserts a Stripe customer on a connected account:

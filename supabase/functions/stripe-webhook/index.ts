@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
 import Stripe from "https://esm.sh/stripe@12.3.0";
 import { provisionSelfSignup } from "../_shared/provision-signup.ts";
 const corsHeaders = {
