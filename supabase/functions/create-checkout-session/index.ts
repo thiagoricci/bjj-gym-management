@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
 import Stripe from "https://esm.sh/stripe@14.21.0";
 import { corsHeaders } from "../_shared/cors.ts";
+import { upsertStripeCustomer } from "../_shared/stripe-customer.ts";
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -24,7 +25,7 @@ serve(async (req: Request) => {
       );
     }
 
-    const { studentId, planId, organizationId } = await req.json();
+    const { studentId, planId, organizationId, billingStartDate } = await req.json();
     
     console.log("=== CREATE CHECKOUT SESSION START ===");
     console.log("Received request:", { studentId, planId, organizationId });
@@ -172,65 +173,8 @@ serve(async (req: Request) => {
 
     console.log("Organization found with Stripe account:", organization.stripe_account_id);
 
-    let customerId = student.stripe_customer_id;
-
-    // Check if the existing customer ID is valid on the connected account
-    if (customerId) {
-      console.log("Verifying existing Stripe customer:", customerId);
-      try {
-        await stripe.customers.retrieve(customerId, {
-          stripeAccount: organization.stripe_account_id,
-        });
-        console.log("Existing customer verified on connected account");
-      } catch (verifyError: any) {
-        console.log("Existing customer not found on connected account, will create new one:", verifyError.message);
-        customerId = null; // Reset to create a new customer
-      }
-    }
-
-    if (!customerId) {
-      console.log("Creating new Stripe customer for student:", { email: student.email, name: student.name });
-      try {
-        const customer = await stripe.customers.create({
-          email: student.email || undefined,
-          name: student.name,
-          metadata: {
-            studentId: studentId.toString(),
-            organizationId: organizationId,
-          },
-        }, {
-          stripeAccount: organization.stripe_account_id,
-        });
-        customerId = customer.id;
-        console.log("Created Stripe customer on connected account:", customerId);
-      } catch (customerError: any) {
-        console.error("Error creating Stripe customer:", customerError);
-        return new Response(
-          JSON.stringify({
-            error: "Failed to create Stripe customer",
-            details: customerError.message
-          }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      const { error: updateError } = await supabase
-        .from("students")
-        .update({ stripe_customer_id: customerId })
-        .eq("id", studentId);
-
-      if (updateError) {
-        console.error("Failed to update student with Stripe customer ID:", updateError);
-        // Don't fail the request, just log the error
-      } else {
-        console.log("Updated student record with Stripe customer ID");
-      }
-    } else {
-      console.log("Using existing Stripe customer:", customerId);
-    }
+    const customerId = await upsertStripeCustomer(stripe, supabase, { id: studentId, ...student }, organization.stripe_account_id);
+    console.log("Resolved Stripe customer:", customerId);
 
     // Create a subscription checkout session
     // The payment method is automatically saved when creating a subscription
@@ -274,6 +218,9 @@ serve(async (req: Request) => {
             organizationId: organizationId,
           },
           subscription_data: {
+            ...(billingStartDate && new Date(billingStartDate) > new Date()
+              ? { trial_end: Math.floor(new Date(billingStartDate).getTime() / 1000) }
+              : {}),
             metadata: {
               studentId: studentId.toString(),
               planId: planId.toString(),

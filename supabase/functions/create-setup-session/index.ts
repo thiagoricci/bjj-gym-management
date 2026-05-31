@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
 import Stripe from "https://esm.sh/stripe@12.3.0";
 import { corsHeaders } from "../_shared/cors.ts";
+import { upsertStripeCustomer } from "../_shared/stripe-customer.ts";
 
 const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
 
@@ -120,51 +121,8 @@ serve(async (req: Request) => {
     console.log("Organization found with Stripe account:", organization.stripe_account_id);
 
     debugStage = "create-or-retrieve-stripe-customer";
-    console.log("Creating or retrieving Stripe customer...");
-    
-    // Check if student already has a Stripe customer ID
-    let customerId = student.stripe_customer_id;
-    
-    // Verify the customer exists on the connected account
-    if (customerId) {
-      try {
-        await stripe.customers.retrieve(customerId, {
-          stripeAccount: organization.stripe_account_id,
-        });
-        console.log("Existing customer verified on connected account");
-      } catch (verifyError: any) {
-        console.log("Existing customer not found on connected account, will create new one:", verifyError.message);
-        customerId = null;
-      }
-    }
-    
-    if (!customerId) {
-      // Create new customer on the connected account
-      const customer = await stripe.customers.create({
-        email: student.email || undefined,
-        name: student.name,
-        metadata: {
-          studentId: studentId.toString(),
-          organizationId: organizationId.toString(),
-        },
-      }, {
-        stripeAccount: organization.stripe_account_id,
-      });
-      customerId = customer.id;
-      console.log("New Stripe customer created on connected account:", customerId);
-
-      // Save the new customer ID to the student's record
-      const { error: updateError } = await supabase
-        .from("students")
-        .update({ stripe_customer_id: customerId })
-        .eq("id", studentId);
-
-      if (updateError) {
-        console.error("Error updating student with Stripe customer ID:", updateError);
-      }
-    } else {
-      console.log("Using existing Stripe customer:", customerId);
-    }
+    const customerId = await upsertStripeCustomer(stripe, supabase, { id: studentId, ...student }, organization.stripe_account_id);
+    console.log("Resolved Stripe customer:", customerId);
 
     debugStage = "create-setup-session";
     console.log("=== CREATING SETUP SESSION (NOT PAYMENT) ===");

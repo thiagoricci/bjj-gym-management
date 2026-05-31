@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.42.0";
 import Stripe from "https://esm.sh/stripe@12.3.0";
 import { corsHeaders } from "../_shared/cors.ts";
+import { upsertStripeCustomer } from "../_shared/stripe-customer.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") as string, {
   apiVersion: "2023-10-16",
@@ -77,16 +78,6 @@ serve(async (req: Request) => {
       });
     }
 
-    if (!student.stripe_customer_id) {
-      return new Response(
-        JSON.stringify({ error: "Student has no Stripe customer ID" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
     // Fetch plan
     const { data: plan, error: planError } = await supabase
       .from("membership_plans")
@@ -109,7 +100,7 @@ serve(async (req: Request) => {
         .select("stripe_account_id")
         .eq("id", student.organization_id)
         .single();
-      
+
       stripeAccountId = organization?.stripe_account_id || null;
     }
 
@@ -126,10 +117,14 @@ serve(async (req: Request) => {
     // Build Stripe options for connected account
     const stripeOptions = { stripeAccount: stripeAccountId };
 
+    // Upsert Stripe customer — find existing by ID or email, create if needed
+    const customerId = await upsertStripeCustomer(stripe, supabase, { id: studentId, ...student }, stripeAccountId);
+    console.log(`Resolved Stripe customer: ${customerId}`);
+
     // Set the default payment method for the customer
-    console.log(`Setting default payment method ${paymentMethodId} for customer ${student.stripe_customer_id}`);
+    console.log(`Setting default payment method ${paymentMethodId} for customer ${customerId}`);
     await stripe.customers.update(
-      student.stripe_customer_id,
+      customerId,
       {
         invoice_settings: {
           default_payment_method: paymentMethodId,
@@ -172,7 +167,7 @@ serve(async (req: Request) => {
 
     // Create the subscription with the price
     const subscriptionParams: Stripe.SubscriptionCreateParams = {
-      customer: student.stripe_customer_id,
+      customer: customerId,
       items: [{ price: priceId }],
       default_payment_method: paymentMethodId,
       metadata: {

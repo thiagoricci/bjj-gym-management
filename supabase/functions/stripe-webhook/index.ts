@@ -250,6 +250,55 @@ serve(async (req) => {
         }
         console.log("Platform subscription updated successfully");
       }
+    } else if (event.type === "invoice.paid") {
+      const invoice = event.data.object as Stripe.Invoice;
+      console.log("=== PROCESSING INVOICE PAID ===", { billing_reason: invoice.billing_reason, amount_paid: invoice.amount_paid });
+
+      // Only handle recurring charges (subscription_cycle covers both scheduled trial-end charges and monthly renewals).
+      // subscription_create payments are already recorded by checkout.session.completed or charge-student directly.
+      if (invoice.billing_reason !== "subscription_cycle") {
+        console.log("Skipping invoice.paid with billing_reason:", invoice.billing_reason);
+      } else {
+        const subscriptionId = invoice.subscription as string;
+        if (!subscriptionId) {
+          console.log("No subscription on invoice, skipping");
+        } else {
+          const connectedAccountId = event.account;
+          const stripeOptions = connectedAccountId ? { stripeAccount: connectedAccountId } : {};
+
+          const subscription = await stripe.subscriptions.retrieve(subscriptionId, stripeOptions);
+          const { studentId, organizationId } = subscription.metadata || {};
+
+          if (!studentId || !organizationId) {
+            console.log("No studentId/organizationId in subscription metadata, skipping (likely a platform subscription)");
+          } else {
+            const amount = invoice.amount_paid ? invoice.amount_paid / 100 : 0;
+
+            if (amount > 0) {
+              const { error: paymentError } = await supabaseAdmin.from("payments").insert({
+                student_id: parseInt(studentId),
+                organization_id: organizationId,
+                amount,
+                date: new Date().toISOString(),
+                status: "paid",
+                stripe_invoice_id: invoice.id,
+              });
+
+              if (paymentError) {
+                console.error("Error recording invoice.paid payment:", paymentError);
+              } else {
+                console.log(`Recurring payment recorded for student: ${studentId}, amount: ${amount}`);
+              }
+
+              // Ensure student is active (catches the scheduled start date case)
+              await supabaseAdmin.from("students").update({
+                membership_status: "active",
+                status: "student",
+              }).eq("id", parseInt(studentId));
+            }
+          }
+        }
+      }
     } else if (event.type === "invoice.payment_failed") {
       const invoice = event.data.object as Stripe.Invoice;
       console.log("=== PROCESSING INVOICE PAYMENT FAILED ===");

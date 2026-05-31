@@ -346,9 +346,9 @@ export default function StudentDetail() {
   });
 
   const createCheckoutSessionMutation = useMutation({
-    mutationFn: async ({ planId }: { planId: string }) => {
+    mutationFn: async ({ planId, billingStartDate }: { planId: string; billingStartDate?: string }) => {
       if (!id) throw new Error("Student ID is missing");
-      console.log("Creating checkout session:", { studentId: id, planId });
+      console.log("Creating checkout session:", { studentId: id, planId, billingStartDate });
 
       const {
         data: { session },
@@ -368,6 +368,7 @@ export default function StudentDetail() {
             studentId: id,
             planId,
             organizationId: organization.id,
+            billingStartDate,
           }),
         }
       );
@@ -492,7 +493,7 @@ export default function StudentDetail() {
     } else if (paymentMethodId) {
       chargeStudentMutation.mutate({ planId: selectedPlan, paymentMethodId, billingStartDate });
     } else {
-      createCheckoutSessionMutation.mutate({ planId: selectedPlan });
+      createCheckoutSessionMutation.mutate({ planId: selectedPlan, billingStartDate });
     }
   };
 

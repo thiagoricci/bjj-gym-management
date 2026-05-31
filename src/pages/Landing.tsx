@@ -1,13 +1,58 @@
 import { Button } from "@/components/ui/button";
 import { Check, Loader2, Users, Calendar, TrendingUp, CreditCard, Award, Clock } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
+const FIXED_STYLES: React.CSSProperties = {
+  ["--background" as string]: "220 17% 97%",
+  ["--foreground" as string]: "222 47% 11%",
+  ["--card" as string]: "0 0% 100%",
+  ["--card-foreground" as string]: "222 47% 11%",
+  ["--popover" as string]: "0 0% 100%",
+  ["--popover-foreground" as string]: "222 47% 11%",
+  ["--primary" as string]: "237 83% 27%",
+  ["--primary-foreground" as string]: "0 0% 100%",
+  ["--secondary" as string]: "220 14% 96%",
+  ["--secondary-foreground" as string]: "222 47% 11%",
+  ["--muted" as string]: "220 14% 96%",
+  ["--muted-foreground" as string]: "215 16% 47%",
+  ["--accent" as string]: "348 83% 47%",
+  ["--accent-foreground" as string]: "0 0% 100%",
+  ["--destructive" as string]: "0 84% 60%",
+  ["--destructive-foreground" as string]: "0 0% 100%",
+  ["--border" as string]: "220 13% 91%",
+  ["--input" as string]: "220 13% 91%",
+  ["--ring" as string]: "237 83% 27%",
+  ["--radius" as string]: "0.75rem",
+  ["--sidebar" as string]: "0 0% 100%",
+  ["--sidebar-foreground" as string]: "222 47% 11%",
+  ["--sidebar-border" as string]: "220 13% 91%",
+  ["--sidebar-accent" as string]: "220 14% 96%",
+  ["--sidebar-accent-foreground" as string]: "222 47% 11%",
+  ["--sidebar-ring" as string]: "237 83% 27%",
+  ["--gradient-primary" as string]:
+    "linear-gradient(135deg, hsl(237 83% 27%), hsl(237 83% 37%))",
+  ["--gradient-accent" as string]:
+    "linear-gradient(135deg, hsl(348 83% 47%), hsl(348 83% 57%))",
+  ["--gradient-card" as string]:
+    "linear-gradient(180deg, hsl(0 0% 100%), hsl(220 17% 99%))",
+  ["--transition-smooth" as string]: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+  colorScheme: "light",
+};
+
 export default function Landing() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const hadDark = document.documentElement.classList.contains("dark");
+    document.documentElement.classList.remove("dark");
+    return () => {
+      if (hadDark) document.documentElement.classList.add("dark");
+    };
+  }, []);
 
   const handleSubscribe = async () => {
     setLoading(true);
@@ -23,9 +68,9 @@ export default function Landing() {
       if (data?.url) {
         window.location.href = data.url;
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error creating checkout session:", error);
-      toast.error(error.message || "Failed to start subscription");
+      toast.error(error instanceof Error ? error.message : "Failed to start subscription");
     } finally {
       setLoading(false);
     }
@@ -96,7 +141,7 @@ export default function Landing() {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen" style={FIXED_STYLES}>
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background md:bg-background/80 md:backdrop-blur-sm">
         <div className="container mx-auto px-4 h-16 flex justify-between items-center">

@@ -18,23 +18,12 @@ type ThemeContextType = {
   resolvedMode: "light" | "dark";
 };
 
-const STORAGE_KEY_THEME = "app-theme-id";
 const STORAGE_KEY_MODE = "app-theme-mode";
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-function getSystemMode(): "light" | "dark" {
-  if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
-}
-
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<ThemePreset>(() => {
-    const savedId = localStorage.getItem(STORAGE_KEY_THEME);
-    return themePresets.find((t) => t.id === savedId) || themePresets[0];
-  });
+  const [theme, setTheme] = useState<ThemePreset>(() => themePresets[0]);
 
   const [mode, setModeState] = useState<ThemeMode>(() => {
     const savedMode = localStorage.getItem(STORAGE_KEY_MODE) as ThemeMode | null;
@@ -59,10 +48,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setThemeById = (id: string) => {
     const preset = themePresets.find((t) => t.id === id);
-    if (preset) {
-      setTheme(preset);
-      localStorage.setItem(STORAGE_KEY_THEME, id);
-    }
+    if (preset) setTheme(preset);
   };
 
   const setMode = (newMode: ThemeMode) => {
@@ -95,14 +81,21 @@ export function AccountThemeScope({
   const { theme, mode, resolvedMode, setThemeById, setMode } = useTheme();
   const { organization } = useAuth();
   const orgIdRef = useRef<string | null>(null);
+  const loadedRef = useRef(false);
   const appliedKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const orgId = organization?.id;
-    if (!orgId) return;
+    if (!orgId) {
+      loadedRef.current = false;
+      orgIdRef.current = null;
+      return;
+    }
 
     if (orgIdRef.current !== orgId) {
       orgIdRef.current = orgId;
+      loadedRef.current = false;
+
       const savedThemeId = localStorage.getItem(`org-theme-${orgId}`);
       const savedMode = localStorage.getItem(`org-mode-${orgId}`);
 
@@ -117,20 +110,15 @@ export function AccountThemeScope({
       ) {
         setMode(savedMode);
       }
+
+      loadedRef.current = true;
     }
-  }, [organization?.id, setThemeById, setMode]);
 
-  useEffect(() => {
-    const orgId = organization?.id;
-    if (!orgId) return;
-    localStorage.setItem(`org-theme-${orgId}`, theme.id);
-  }, [theme.id, organization?.id]);
-
-  useEffect(() => {
-    const orgId = organization?.id;
-    if (!orgId) return;
-    localStorage.setItem(`org-mode-${orgId}`, mode);
-  }, [mode, organization?.id]);
+    if (loadedRef.current) {
+      localStorage.setItem(`org-theme-${orgId}`, theme.id);
+      localStorage.setItem(`org-mode-${orgId}`, mode);
+    }
+  }, [organization?.id, theme.id, mode, setThemeById, setMode]);
 
   useEffect(() => {
     const root = document.documentElement;
