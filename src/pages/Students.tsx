@@ -9,7 +9,8 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, getAvatarColor } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import BeltBadge, { BeltRank } from "@/components/BeltBadge";
 import { useNavigate } from "react-router-dom";
 import {
@@ -158,15 +159,37 @@ export default function Students() {
   };
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="pb-4 border-b border-border/60">
+          <Skeleton className="h-9 w-36 mb-2" />
+          <Skeleton className="h-4 w-52" />
+        </div>
+        <div className="rounded-md border">
+          <div className="p-4 space-y-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <Skeleton className="h-9 w-9 rounded-full shrink-0" />
+                <Skeleton className="h-4 w-40" />
+                <Skeleton className="h-5 w-16 ml-4" />
+                <div className="ml-auto flex items-center gap-6">
+                  <Skeleton className="h-4 w-32 hidden md:block" />
+                  <Skeleton className="h-4 w-24 hidden lg:block" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-border/60">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">Students</h2>
-          <p className="text-muted-foreground">Manage your academy students</p>
+          <p className="text-muted-foreground mt-1">Manage your academy students</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative w-full sm:w-80">
@@ -215,12 +238,15 @@ export default function Students() {
             {filteredStudents.map((student) => (
               <TableRow
                 key={student.id}
-                className="cursor-pointer"
+                className="cursor-pointer transition-colors"
                 onClick={() => navigate(`/student/${student.id}`)}
               >
                 <TableCell className="font-medium">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                    <div className={cn(
+                      "flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold",
+                      getAvatarColor(student.name || "?")
+                    )}>
                       {student.name?.charAt(0) || "?"}
                     </div>
                     {student.name || "Unknown Student"}
@@ -228,20 +254,24 @@ export default function Students() {
                 </TableCell>
                 <TableCell>
                   <Badge
+                    variant="outline"
                     className={cn(
-                      "border-transparent text-xs",
+                      "text-xs font-medium",
                       student.membership_status === "active" &&
-                        "bg-green-500 text-white hover:bg-green-600",
+                        "bg-green-50 text-green-700 border-green-200",
                       student.membership_status === "inactive" &&
-                        "bg-gray-500 text-white hover:bg-gray-600",
+                        "bg-gray-100 text-gray-600 border-gray-200",
                       student.membership_status === "frozen" &&
-                        "bg-yellow-500 text-white hover:bg-yellow-600",
+                        "bg-amber-50 text-amber-700 border-amber-200",
                       student.status === "trial" &&
-                        "bg-blue-500 text-white hover:bg-blue-600",
-                      (student.status === "none" || !student.status) &&
                         student.membership_status !== "inactive" &&
                         student.membership_status !== "frozen" &&
-                        "bg-gray-400 text-white hover:bg-gray-500"
+                        "bg-blue-50 text-blue-700 border-blue-200",
+                      (student.status === "none" || !student.status) &&
+                        student.membership_status !== "active" &&
+                        student.membership_status !== "inactive" &&
+                        student.membership_status !== "frozen" &&
+                        "bg-gray-50 text-gray-500 border-gray-200"
                     )}
                   >
                     {student.membership_status === "inactive"

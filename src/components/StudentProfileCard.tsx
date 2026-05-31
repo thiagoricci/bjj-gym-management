@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import BeltBadge from "@/components/BeltBadge";
 import { BarChart, Edit } from "lucide-react";
 import { BeltRank } from "@/components/BeltBadge";
-import { Progress } from "@/components/ui/progress";
 import { differenceInMonths, differenceInYears } from "date-fns";
 import { Button } from "@/components/ui/button";
 import {
@@ -164,16 +163,21 @@ export default function StudentProfileCard({
           <BeltBadge rank={student.belt} />
         </div>
         <div className="py-2 border-b border-border">
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center">
             <span className="text-muted-foreground">Stripes</span>
-            <span className="font-medium text-foreground">
-              {student.stripes}/4
-            </span>
+            <div className="flex items-center gap-1.5">
+              {Array.from({ length: 4 }, (_, i) => (
+                <span
+                  key={i}
+                  className={`h-3.5 w-3.5 rounded-full border-2 transition-colors ${
+                    i < student.stripes
+                      ? "bg-primary border-primary"
+                      : "bg-transparent border-muted-foreground/25"
+                  }`}
+                />
+              ))}
+            </div>
           </div>
-          <Progress
-            value={(student.stripes / 4) * 100}
-            className="w-full mt-2"
-          />
         </div>
         <div className="flex justify-between py-2 border-b border-border">
           <span className="text-muted-foreground">Training for</span>

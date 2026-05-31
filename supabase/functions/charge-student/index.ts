@@ -221,16 +221,22 @@ serve(async (req: Request) => {
       }
 
       // Record payment
-      if (student.organization_id) {
-        console.log(`Attempting to insert payment for student ${studentId} in org ${student.organization_id}`);
+      const planPrice = parseFloat(plan.price);
+      const isScheduled = subscription.status === "trialing";
+      if (student.organization_id && (!isScheduled || planPrice > 0)) {
+        const paymentStatus = isScheduled ? "scheduled" : "paid";
+        const paymentDate = isScheduled && billingStartDate
+          ? new Date(billingStartDate).toISOString()
+          : new Date().toISOString();
+        console.log(`Attempting to insert payment for student ${studentId} in org ${student.organization_id} with status: ${paymentStatus}`);
         const { data: paymentData, error: paymentError } = await supabase
           .from("payments")
           .insert({
             student_id: parseInt(studentId.toString()),
             organization_id: student.organization_id,
-            amount: parseFloat(plan.price),
-            date: new Date().toISOString(),
-            status: 'paid'
+            amount: planPrice,
+            date: paymentDate,
+            status: paymentStatus
           })
           .select();
 

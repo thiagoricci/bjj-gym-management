@@ -6,9 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { brandFixedStyles, useBrandLightMode } from "@/lib/brand-theme";
 
 export default function Login() {
   const navigate = useNavigate();
+  useBrandLightMode();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -57,7 +59,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4" style={brandFixedStyles}>
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Login</CardTitle>

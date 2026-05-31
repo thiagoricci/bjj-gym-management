@@ -40,7 +40,7 @@ export default function Documentation() {
               Introduction
             </h2>
             <p className="text-lg text-muted-foreground leading-relaxed">
-              Welcome to the Jiu-Jitsu Manager documentation. Our platform is designed to help BJJ academy owners streamline their operations, manage students, track attendance, and handle payments efficiently. Whether you're running a small club or a large academy, this guide will help you get the most out of our features.
+              Welcome to the JitzManager documentation. Our platform is designed to help BJJ academy owners streamline their operations, manage students, track attendance, and handle payments efficiently. Whether you're running a small club or a large academy, this guide will help you get the most out of our features.
             </p>
           </section>
 

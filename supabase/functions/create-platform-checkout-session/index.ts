@@ -92,7 +92,7 @@ serve(async (req: Request) => {
               name: "Standard Plan",
               description: "Full access to gym management features",
             },
-            unit_amount: 2900, // $29.00
+            unit_amount: 3900, // $39.00
             recurring: {
               interval: "month",
             },
@@ -105,6 +105,7 @@ serve(async (req: Request) => {
       cancel_url: cancelUrl,
       metadata: metadata,
       subscription_data: {
+        trial_period_days: 14,
         metadata: metadata,
       },
     });

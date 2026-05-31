@@ -6,7 +6,11 @@ type Profile = {
   id: string;
   organization_id: string | null;
   role: string;
+  full_name: string | null;
+  email: string | null;
 };
+
+const ADMIN_ROLES = ["owner", "admin"];
 
 type Organization = {
   id: string;
@@ -24,6 +28,7 @@ type AuthContextType = {
   user: User | null;
   profile: Profile | null;
   organization: Organization | null;
+  isAdmin: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
   refreshProfile: (silent?: boolean) => Promise<void>;
@@ -124,8 +129,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
   };
 
+  const isAdmin = !!profile && ADMIN_ROLES.includes(profile.role);
+
   return (
-    <AuthContext.Provider value={{ session, user, profile, organization, loading, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ session, user, profile, organization, isAdmin, loading, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

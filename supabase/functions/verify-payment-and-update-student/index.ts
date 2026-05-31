@@ -201,22 +201,28 @@ serve(async (req) => {
     }
 
     // 6. Create a payment record in 'payments' table
-    const amount = session.amount_total; // This is in cents
-    const paymentDate = new Date(session.created * 1000).toISOString(); // Convert Unix timestamp to ISO string
-    
-    if (student.organization_id) {
-      console.log(`Attempting to insert payment for student ${studentIdFromSession} in org ${student.organization_id}`);
+    // If amount_total is 0 but the plan has a price, the subscription is in trial
+    // (future billing date) — record as scheduled with the correct plan amount.
+    const chargedAmount = session.amount_total ? session.amount_total / 100 : 0;
+    const planPrice = parseFloat(plan.price);
+    const isScheduled = chargedAmount === 0 && planPrice > 0;
+    const paymentStatus = isScheduled ? "scheduled" : "paid";
+    const paymentAmount = isScheduled ? planPrice : chargedAmount;
+    const paymentDate = new Date(session.created * 1000).toISOString();
+
+    if (student.organization_id && (!isScheduled || planPrice > 0)) {
+      console.log(`Inserting payment for student ${studentIdFromSession} in org ${student.organization_id} — status: ${paymentStatus}`);
       const { data: paymentData, error: paymentError } = await supabase
         .from("payments")
         .insert([{
           student_id: studentIdFromSession,
           organization_id: student.organization_id,
-          amount: amount ? amount / 100 : 0, // Convert cents to dollars
+          amount: paymentAmount,
           date: paymentDate,
-          status: session.payment_status, // e.g., 'paid'
+          status: paymentStatus,
         }])
         .select();
-      
+
       if (paymentError) {
         console.error("Error inserting payment record:", JSON.stringify(paymentError));
       } else {

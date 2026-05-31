@@ -46,7 +46,7 @@ export default function RevenueChart() {
       .reduce((sum, p) => sum + (p.amount ? Number(p.amount) : 0), 0) || 0;
     
     return {
-      month: format(month, "MMM yy"),
+      month: format(month, "MMM"),
       revenue: monthlyRevenue,
     };
   });

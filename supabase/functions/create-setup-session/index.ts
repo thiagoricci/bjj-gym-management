@@ -45,7 +45,7 @@ serve(async (req: Request) => {
     const { studentId, organizationId } = await req.json();
     console.log("Request body:", { studentId, organizationId });
 
-    const siteUrl = Deno.env.get("SITE_URL");
+    const siteUrl = Deno.env.get("SITE_URL")?.replace(/\/$/, "");
     if (!siteUrl) {
       console.error("Missing SITE_URL environment variable");
       throw new Error("Missing SITE_URL environment variable");

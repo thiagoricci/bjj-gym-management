@@ -201,25 +201,34 @@ serve(async (req) => {
         return new Response(`Database Error: ${error.message}`, { status: 500 });
       }
 
-      // Record payment
+      // Record payment — if amount_total is 0 but plan has a price, the subscription
+      // is in trial (future billing date), so record as scheduled instead of paid.
       if (organizationId) {
-        const amount = session.amount_total ? session.amount_total / 100 : 0;
-        console.log(`Attempting to insert payment for student ${studentId} in org ${organizationId}`);
-        const { data: paymentData, error: paymentError } = await supabaseAdmin
-          .from("payments")
-          .insert({
-            student_id: parseInt(studentId.toString()),
-            organization_id: organizationId,
-            amount: amount,
-            date: new Date().toISOString(),
-            status: 'paid'
-          })
-          .select();
+        const planPrice = parseFloat(plan.price);
+        const chargedAmount = session.amount_total ? session.amount_total / 100 : 0;
+        const isScheduled = chargedAmount === 0 && planPrice > 0;
 
-        if (paymentError) {
-          console.error("Error recording payment:", JSON.stringify(paymentError));
-        } else {
-          console.log(`Payment recorded for student: ${studentId}`, paymentData);
+        if (!isScheduled || planPrice > 0) {
+          const paymentStatus = isScheduled ? "scheduled" : "paid";
+          const paymentAmount = isScheduled ? planPrice : chargedAmount;
+
+          console.log(`Inserting payment for student ${studentId} in org ${organizationId} — status: ${paymentStatus}`);
+          const { data: paymentData, error: paymentError } = await supabaseAdmin
+            .from("payments")
+            .insert({
+              student_id: parseInt(studentId.toString()),
+              organization_id: organizationId,
+              amount: paymentAmount,
+              date: new Date().toISOString(),
+              status: paymentStatus,
+            })
+            .select();
+
+          if (paymentError) {
+            console.error("Error recording payment:", JSON.stringify(paymentError));
+          } else {
+            console.log(`Payment recorded for student: ${studentId}`, paymentData);
+          }
         }
       } else {
         console.warn(`Missing organizationId in metadata for student: ${studentId}, skipping payment record.`);
@@ -275,19 +284,40 @@ serve(async (req) => {
             const amount = invoice.amount_paid ? invoice.amount_paid / 100 : 0;
 
             if (amount > 0) {
-              const { error: paymentError } = await supabaseAdmin.from("payments").insert({
-                student_id: parseInt(studentId),
-                organization_id: organizationId,
-                amount,
-                date: new Date().toISOString(),
-                status: "paid",
-                stripe_invoice_id: invoice.id,
-              });
+              // Promote a scheduled record to paid if one exists, otherwise insert fresh
+              const { data: scheduledPayment } = await supabaseAdmin
+                .from("payments")
+                .select("id")
+                .eq("student_id", parseInt(studentId))
+                .eq("organization_id", organizationId)
+                .eq("status", "scheduled")
+                .maybeSingle();
 
-              if (paymentError) {
-                console.error("Error recording invoice.paid payment:", paymentError);
+              if (scheduledPayment) {
+                const { error: updateError } = await supabaseAdmin
+                  .from("payments")
+                  .update({ status: "paid", date: new Date().toISOString(), stripe_invoice_id: invoice.id })
+                  .eq("id", scheduledPayment.id);
+                if (updateError) {
+                  console.error("Error promoting scheduled payment to paid:", updateError);
+                } else {
+                  console.log(`Scheduled payment promoted to paid for student: ${studentId}`);
+                }
               } else {
-                console.log(`Recurring payment recorded for student: ${studentId}, amount: ${amount}`);
+                const { error: paymentError } = await supabaseAdmin.from("payments").insert({
+                  student_id: parseInt(studentId),
+                  organization_id: organizationId,
+                  amount,
+                  date: new Date().toISOString(),
+                  status: "paid",
+                  stripe_invoice_id: invoice.id,
+                });
+
+                if (paymentError) {
+                  console.error("Error recording invoice.paid payment:", paymentError);
+                } else {
+                  console.log(`Recurring payment recorded for student: ${studentId}, amount: ${amount}`);
+                }
               }
 
               // Ensure student is active (catches the scheduled start date case)

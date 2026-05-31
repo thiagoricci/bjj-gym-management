@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import BeltBadge, { BeltRank } from "@/components/BeltBadge";
 import { formatDate } from "@/lib/date";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn, getAvatarColor } from "@/lib/utils";
 import {
   Pagination,
   PaginationContent,
@@ -68,13 +69,10 @@ export default function StudentList({
                   onClick={() => navigate(`/student/${student.id}`)}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold ${
-                        student.status === 'trial'
-                        ? 'bg-blue-100 text-blue-800'
-                        : student.status === 'none' || !student.status
-                        ? 'bg-gray-100 text-gray-800'
-                        : 'bg-primary/10 text-primary'
-                    }`}>
+                    <div className={cn(
+                      "flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold",
+                      getAvatarColor(student.name || "?")
+                    )}>
                       {student.name?.charAt(0) || "?"}
                     </div>
                     <div>

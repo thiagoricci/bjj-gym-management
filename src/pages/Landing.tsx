@@ -1,436 +1,986 @@
-import { Button } from "@/components/ui/button";
-import { Check, Loader2, Users, Calendar, TrendingUp, CreditCard, Award, Clock } from "lucide-react";
-import { useState, useEffect } from "react";
+import {
+  Check,
+  Loader2,
+  Users,
+  Calendar,
+  TrendingUp,
+  CreditCard,
+  Award,
+  Clock,
+  ArrowRight,
+  ArrowUpRight,
+  Shield,
+  BarChart3,
+  LayoutDashboard,
+  CalendarCheck,
+  Settings,
+  HelpCircle,
+  UserCheck,
+  UserPlus,
+  Lock,
+} from "lucide-react";
+import { useState, useEffect, useRef, type FC, type ReactNode, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { brandFixedStyles, useBrandLightMode } from "@/lib/brand-theme";
 
-const FIXED_STYLES: React.CSSProperties = {
-  ["--background" as string]: "220 17% 97%",
-  ["--foreground" as string]: "222 47% 11%",
-  ["--card" as string]: "0 0% 100%",
-  ["--card-foreground" as string]: "222 47% 11%",
-  ["--popover" as string]: "0 0% 100%",
-  ["--popover-foreground" as string]: "222 47% 11%",
-  ["--primary" as string]: "237 83% 27%",
-  ["--primary-foreground" as string]: "0 0% 100%",
-  ["--secondary" as string]: "220 14% 96%",
-  ["--secondary-foreground" as string]: "222 47% 11%",
-  ["--muted" as string]: "220 14% 96%",
-  ["--muted-foreground" as string]: "215 16% 47%",
-  ["--accent" as string]: "348 83% 47%",
-  ["--accent-foreground" as string]: "0 0% 100%",
-  ["--destructive" as string]: "0 84% 60%",
-  ["--destructive-foreground" as string]: "0 0% 100%",
-  ["--border" as string]: "220 13% 91%",
-  ["--input" as string]: "220 13% 91%",
-  ["--ring" as string]: "237 83% 27%",
-  ["--radius" as string]: "0.75rem",
-  ["--sidebar" as string]: "0 0% 100%",
-  ["--sidebar-foreground" as string]: "222 47% 11%",
-  ["--sidebar-border" as string]: "220 13% 91%",
-  ["--sidebar-accent" as string]: "220 14% 96%",
-  ["--sidebar-accent-foreground" as string]: "222 47% 11%",
-  ["--sidebar-ring" as string]: "237 83% 27%",
-  ["--gradient-primary" as string]:
-    "linear-gradient(135deg, hsl(237 83% 27%), hsl(237 83% 37%))",
-  ["--gradient-accent" as string]:
-    "linear-gradient(135deg, hsl(348 83% 47%), hsl(348 83% 57%))",
-  ["--gradient-card" as string]:
-    "linear-gradient(180deg, hsl(0 0% 100%), hsl(220 17% 99%))",
-  ["--transition-smooth" as string]: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-  colorScheme: "light",
+/* ─────────────────────────────────────────────────────────────
+   Design tokens — light brand canvas (navy primary) with the BJJ
+   belt spectrum as the living accent system. Crimson is reserved
+   for the authentic black-belt red bar.
+   ───────────────────────────────────────────────────────────── */
+const PAGE = "hsl(220 17% 97%)"; // base canvas
+const PAGE_ALT = "hsl(0 0% 100%)"; // alternating section (white)
+const CARD = "hsl(0 0% 100%)"; // raised card
+const CARD_HI = "hsl(220 16% 97%)";
+const LINE = "hsl(220 13% 90%)"; // hairline border
+const LINE_HI = "hsl(220 13% 82%)";
+const TEXT = "hsl(222 47% 11%)"; // primary text (dark navy)
+const MUTE = "hsl(215 16% 47%)"; // muted text
+const NAVY = "hsl(237 83% 27%)"; // primary brand accent
+const NAVY_HI = "hsl(237 83% 33%)";
+const CRIMSON = "hsl(348 83% 47%)"; // the black-belt red bar
+
+const BELT = {
+  white: "hsl(45 32% 90%)",
+  blue: "hsl(217 76% 50%)",
+  purple: "hsl(266 54% 54%)",
+  brown: "hsl(25 46% 36%)",
+  black: "hsl(0 0% 9%)",
 };
+
+/* ───── scroll reveal ───── */
+function useInView(threshold = 0.15) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([e]) => {
+        if (e.isIntersecting) {
+          setVisible(true);
+          obs.unobserve(el);
+        }
+      },
+      { threshold }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [threshold]);
+  return { ref, visible };
+}
+
+const Reveal: FC<{ children: ReactNode; className?: string; delay?: number }> = ({
+  children,
+  className = "",
+  delay = 0,
+}) => {
+  const { ref, visible } = useInView();
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity: visible ? 1 : 0,
+        transform: visible ? "translateY(0)" : "translateY(28px)",
+        transition: `opacity .8s cubic-bezier(.16,1,.3,1) ${delay}ms, transform .8s cubic-bezier(.16,1,.3,1) ${delay}ms`,
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
+/* white & black belt dots need a ring to read on a light canvas */
+const dotRing = (c: string) =>
+  c === BELT.white ? `0 0 0 1px ${LINE_HI}` : c === BELT.black ? `0 0 0 1px ${LINE}` : undefined;
+
+const beltDots = [BELT.white, BELT.blue, BELT.purple, BELT.brown, BELT.black];
 
 export default function Landing() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const hadDark = document.documentElement.classList.contains("dark");
-    document.documentElement.classList.remove("dark");
-    return () => {
-      if (hadDark) document.documentElement.classList.add("dark");
-    };
-  }, []);
+  useBrandLightMode();
 
   const handleSubscribe = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke(
         "create-platform-checkout-session",
-        {
-          body: { isAnonymous: true },
-        }
+        { body: { isAnonymous: true } }
       );
-
       if (error) throw error;
-      if (data?.url) {
-        window.location.href = data.url;
-      }
+      if (data?.url) window.location.href = data.url;
     } catch (error: unknown) {
       console.error("Error creating checkout session:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to start subscription");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to start subscription"
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  const scrollTo = (id: string) =>
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+
   const features = [
     {
       icon: Users,
       title: "Student Management",
-      description: "Track unlimited students with detailed profiles, belt ranks, and progress history all in one place.",
+      description:
+        "Unlimited profiles with belt rank, stripe count, and full promotion history — your whole roster on one mat.",
+      accent: BELT.blue,
     },
     {
       icon: Calendar,
       title: "Attendance Tracking",
-      description: "Smart check-in system that automatically detects current classes based on your schedule.",
+      description:
+        "Smart check-in detects the live class from your schedule. Tap in, train, done.",
+      accent: BELT.purple,
     },
     {
       icon: Award,
       title: "Belt Promotions",
-      description: "Visual belt system from White to Black to easily track and celebrate student achievements.",
+      description:
+        "Track every grading from white to black. Celebrate the moment, keep the record.",
+      accent: CRIMSON,
     },
     {
       icon: TrendingUp,
       title: "Financial Reports",
-      description: "Comprehensive insights into revenue trends, membership growth, and payment history.",
+      description:
+        "Revenue trends, membership growth, and payment history rendered in plain sight.",
+      accent: BELT.brown,
     },
     {
       icon: CreditCard,
-      title: "Stripe Integration",
-      description: "Seamless payment processing with automatic recurring billing for student memberships.",
+      title: "Stripe Payments",
+      description:
+        "Recurring billing handled end to end. Money in the door without the paperwork.",
+      accent: NAVY,
     },
     {
       icon: Clock,
       title: "Schedule Management",
-      description: "Set up weekly class schedules with automatic timezone support for accurate tracking.",
+      description:
+        "Weekly class plans with timezone-aware tracking that always reads the room right.",
+      accent: BELT.purple,
     },
   ];
 
   const steps = [
-    {
-      number: "01",
-      title: "Create Your Academy",
-      description: "Sign up and set up your academy profile with name, logo, and timezone settings.",
-    },
-    {
-      number: "02",
-      title: "Add Students",
-      description: "Import or manually add students with their details, belt ranks, and membership plans.",
-    },
-    {
-      number: "03",
-      title: "Set Schedule",
-      description: "Configure your weekly class schedule with specific times and class types.",
-    },
-    {
-      number: "04",
-      title: "Start Managing",
-      description: "Track attendance, process payments, and monitor your academy's growth effortlessly.",
-    },
+    { number: "01", title: "Create your academy", description: "Set up your profile — name, logo, and timezone. Two minutes, no card." },
+    { number: "02", title: "Add your students", description: "Import or add by hand with belt ranks, stripes, and membership plans." },
+    { number: "03", title: "Set the schedule", description: "Map your weekly classes with exact times and class types." },
+    { number: "04", title: "Run the mats", description: "Track attendance, take payments, and watch the academy grow." },
+  ];
+  // dark-enough stroke colors for step numerals on a light canvas
+  const stepStroke = [NAVY, BELT.blue, BELT.purple, BELT.brown];
+
+  const pricingFeatures = [
+    "Unlimited students",
+    "Attendance tracking",
+    "Belt & stripe promotions",
+    "Financial reports",
+    "Stripe payment processing",
+    "Schedule management",
+    "Email support",
   ];
 
-  const benefits = [
-    "Save hours of administrative work every week",
-    "Never miss a membership payment again",
-    "Gain insights into your academy's performance",
-    "Professional image with automated systems",
-    "Focus more on teaching, less on paperwork",
+  // ── data for the in-hero dashboard preview (mirrors the real Dashboard) ──
+  const previewNav = [
+    { icon: LayoutDashboard, active: true },
+    { icon: Users },
+    { icon: CreditCard },
+    { icon: CalendarCheck },
+    { icon: Calendar },
+  ];
+  const previewNavSecondary = [Settings, HelpCircle];
+  const previewStats = [
+    { title: "Total Students", value: "142", icon: Users, trend: "+12% overtime", up: true },
+    { title: "Active Students", value: "128", icon: UserCheck, trend: "+8% overtime", up: true },
+    { title: "New Students", value: "9", icon: UserPlus, trend: "This Month", up: false },
+    { title: "Active Trials", value: "6", icon: TrendingUp, trend: "3 new this month", up: false },
+  ];
+  const revenueBars = [38, 52, 45, 63, 58, 74, 69, 88]; // % heights
+  const beltDist = [
+    { c: BELT.white, n: 41 },
+    { c: BELT.blue, n: 58 },
+    { c: BELT.purple, n: 26 },
+    { c: BELT.brown, n: 11 },
+    { c: BELT.black, n: 6 },
+  ];
+  const navy15 = `color-mix(in srgb, ${NAVY} 14%, transparent)`;
+
+  /* ───── reusable buttons ───── */
+  const Primary: FC<{
+    size?: "default" | "lg";
+    className?: string;
+    onClick?: () => void;
+    disabled?: boolean;
+    children: ReactNode;
+  }> = ({ size = "default", className = "", onClick, disabled, children }) => (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`group/btn relative inline-flex items-center justify-center font-semibold tracking-tight rounded-full overflow-hidden transition-all duration-300 active:scale-[.98] hover:shadow-lg ${
+        size === "lg" ? "h-14 px-9 text-[1.05rem]" : "h-11 px-6 text-sm"
+      } ${disabled ? "opacity-60 pointer-events-none" : ""} ${className}`}
+      style={{ background: NAVY, color: "hsl(0 0% 100%)", fontFamily: "'Hanken Grotesk', sans-serif", boxShadow: `0 10px 30px -12px ${NAVY}` }}
+    >
+      <span
+        className="absolute inset-0 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"
+        style={{ background: NAVY_HI }}
+      />
+      <span className="relative flex items-center">{children}</span>
+    </button>
+  );
+
+  const Ghost: FC<{
+    size?: "default" | "lg";
+    className?: string;
+    onClick?: () => void;
+    children: ReactNode;
+  }> = ({ size = "default", className = "", onClick, children }) => (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center justify-center font-semibold tracking-tight rounded-full border transition-colors duration-300 ${
+        size === "lg" ? "h-14 px-9 text-[1.05rem]" : "h-11 px-6 text-sm"
+      } ${className}`}
+      style={{ borderColor: LINE_HI, color: TEXT, fontFamily: "'Hanken Grotesk', sans-serif", background: PAGE_ALT }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = NAVY;
+        e.currentTarget.style.color = NAVY;
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = LINE_HI;
+        e.currentTarget.style.color = TEXT;
+      }}
+    >
+      {children}
+    </button>
+  );
+
+  const anton: CSSProperties = { fontFamily: "'Anton', sans-serif" };
+  const body: CSSProperties = { fontFamily: "'Hanken Grotesk', sans-serif" };
+
+  const marqueeWords = [
+    "STUDENT MANAGEMENT",
+    "ATTENDANCE",
+    "BELT PROMOTIONS",
+    "PAYMENTS",
+    "SCHEDULING",
+    "REPORTS",
   ];
 
   return (
-    <div className="min-h-screen" style={FIXED_STYLES}>
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-background md:bg-background/80 md:backdrop-blur-sm">
-        <div className="container mx-auto px-4 h-16 flex justify-between items-center">
-          <h1 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-            Jiu-Jitsu Manager
-          </h1>
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => navigate("/documentation")}>
-              Documentation
-            </Button>
-            <Button variant="ghost" onClick={() => navigate("/login")}>
-              Login
-            </Button>
+    <div
+      className="min-h-screen relative overflow-x-clip"
+      style={{ ...brandFixedStyles, background: PAGE, color: TEXT, ...body }}
+    >
+      {/* injected animations + atmosphere */}
+      <style>{`
+        @keyframes jm-marquee { from { transform: translateX(0) } to { transform: translateX(-50%) } }
+        @keyframes jm-float { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-10px) } }
+        @keyframes jm-pulse { 0%,100% { opacity:.5 } 50% { opacity:1 } }
+        .jm-grain::before {
+          content:""; position:fixed; inset:0; z-index:1; pointer-events:none; opacity:.035;
+          background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        }
+        ::selection { background: ${NAVY}; color: hsl(0 0% 100%); }
+      `}</style>
+
+      <div className="jm-grain" />
+
+      {/* belt-spectrum rail down the far left edge (desktop) */}
+      <div className="hidden lg:flex fixed left-0 top-0 bottom-0 w-[6px] z-40 flex-col">
+        {beltDots.map((c, i) => (
+          <div key={i} className="flex-1" style={{ background: c }} />
+        ))}
+      </div>
+
+      {/* ───────────────────────── NAV ───────────────────────── */}
+      <header
+        className="sticky top-0 z-50 backdrop-blur-xl"
+        style={{ background: "hsl(220 17% 97% / .78)", borderBottom: `1px solid ${LINE}` }}
+      >
+        <div className="max-w-[1240px] mx-auto px-6 lg:pl-10 h-[68px] flex justify-between items-center">
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+            className="flex items-center gap-3 group"
+          >
+            <div className="relative h-9 w-9 rounded-md flex items-center justify-center" style={{ background: NAVY }}>
+              <span style={anton} className="text-[15px] tracking-tight text-white">JM</span>
+              {/* belt-spectrum underline */}
+              <div className="absolute -bottom-0 left-0 right-0 h-[3px] flex rounded-b-md overflow-hidden">
+                {beltDots.map((c, i) => (
+                  <div key={i} className="flex-1" style={{ background: c }} />
+                ))}
+              </div>
+            </div>
+            <span className="text-xl tracking-tight" style={{ ...body, fontWeight: 800, color: TEXT }}>
+              Jitz<span style={{ color: NAVY }}>Manager</span>
+            </span>
+          </button>
+
+          <nav className="hidden md:flex items-center gap-9">
+            {[
+              { label: "Features", action: () => scrollTo("features") },
+              { label: "Pricing", action: () => scrollTo("pricing") },
+              { label: "Docs", action: () => navigate("/documentation") },
+            ].map((l) => (
+              <button
+                key={l.label}
+                onClick={l.action}
+                className="text-sm font-medium transition-colors"
+                style={{ color: MUTE }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = TEXT)}
+                onMouseLeave={(e) => (e.currentTarget.style.color = MUTE)}
+              >
+                {l.label}
+              </button>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate("/login")}
+              className="hidden sm:inline-flex text-sm font-semibold transition-colors"
+              style={{ color: TEXT }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = NAVY)}
+              onMouseLeave={(e) => (e.currentTarget.style.color = TEXT)}
+            >
+              Log in
+            </button>
+            <Primary onClick={handleSubscribe} disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing
+                </>
+              ) : (
+                "Get started"
+              )}
+            </Primary>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-primary opacity-5" />
-        <div className="container mx-auto px-4 py-20 md:py-32 relative">
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-block mb-4 px-4 py-2 bg-primary/10 border border-primary/20 rounded-full">
-              <span className="text-sm font-medium text-primary">🥋 Built for BJJ Academies</span>
+      {/* ───────────────────────── HERO ───────────────────────── */}
+      <section className="relative">
+        {/* atmosphere */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "radial-gradient(120% 80% at 78% 8%, hsl(237 83% 27% / .08), transparent 55%), radial-gradient(90% 70% at 8% 90%, hsl(348 83% 47% / .05), transparent 55%)",
+          }}
+        />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            backgroundImage:
+              "linear-gradient(hsl(222 47% 11% / .035) 1px, transparent 1px), linear-gradient(90deg, hsl(222 47% 11% / .035) 1px, transparent 1px)",
+            backgroundSize: "64px 64px",
+            maskImage: "radial-gradient(110% 90% at 50% 0%, #000 30%, transparent 80%)",
+            WebkitMaskImage: "radial-gradient(110% 90% at 50% 0%, #000 30%, transparent 80%)",
+          }}
+        />
+
+        <div className="relative max-w-[1240px] mx-auto px-6 lg:pl-10 pt-20 pb-24 md:pt-28 md:pb-32">
+          <div className="grid lg:grid-cols-[1.15fr_.85fr] gap-16 items-center">
+            {/* left: type */}
+            <div>
+              <Reveal>
+                <div
+                  className="inline-flex items-center gap-3 mb-9 pl-2 pr-4 py-2 rounded-full"
+                  style={{ background: PAGE_ALT, border: `1px solid ${LINE}`, boxShadow: "0 4px 14px -8px hsl(222 47% 11% / .15)" }}
+                >
+                  <span className="flex items-center gap-1">
+                    {beltDots.map((c, i) => (
+                      <span
+                        key={i}
+                        className="block h-2.5 w-2.5 rounded-full"
+                        style={{ background: c, boxShadow: dotRing(c) }}
+                      />
+                    ))}
+                  </span>
+                  <span className="text-xs font-semibold tracking-wide" style={{ color: MUTE }}>
+                    BUILT FOR BRAZILIAN JIU-JITSU ACADEMIES
+                  </span>
+                </div>
+              </Reveal>
+
+              <Reveal delay={80}>
+                <h1
+                  className="uppercase leading-[0.86] text-[clamp(3rem,9vw,7rem)]"
+                  style={{ ...anton, color: TEXT, letterSpacing: "-0.01em" }}
+                >
+                  Run your
+                  <br />
+                  academy like
+                  <br />
+                  <span className="relative inline-block" style={{ color: NAVY }}>
+                    a black belt
+                    <span
+                      className="absolute left-0 -bottom-1 h-[7px] w-full rounded-full"
+                      style={{ background: CRIMSON }}
+                    />
+                  </span>
+                </h1>
+              </Reveal>
+
+              <Reveal delay={160}>
+                <p className="mt-9 text-lg md:text-xl max-w-lg leading-relaxed" style={{ color: MUTE }}>
+                  JitzManager is the all-in-one platform for BJJ academies — students,
+                  memberships, attendance, and payments, run from a single dashboard.
+                </p>
+              </Reveal>
+
+              <Reveal delay={240}>
+                <div className="mt-10 flex flex-col sm:flex-row gap-4">
+                  <Primary size="lg" onClick={handleSubscribe} disabled={loading}>
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Processing…
+                      </>
+                    ) : (
+                      <>
+                        Start free trial
+                        <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover/btn:translate-x-1" />
+                      </>
+                    )}
+                  </Primary>
+                  <Ghost size="lg" onClick={() => scrollTo("features")}>
+                    See features
+                  </Ghost>
+                </div>
+              </Reveal>
+
+              <Reveal delay={320}>
+                <div className="mt-12 flex flex-wrap items-center gap-x-7 gap-y-3 text-sm" style={{ color: MUTE }}>
+                  {[
+                    { icon: Shield, label: "SSL secured" },
+                    { icon: CreditCard, label: "Stripe payments" },
+                    { icon: BarChart3, label: "Real-time analytics" },
+                  ].map((t) => (
+                    <div key={t.label} className="flex items-center gap-2">
+                      <t.icon className="h-4 w-4" style={{ color: "hsl(142 60% 40%)" }} />
+                      <span>{t.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </Reveal>
             </div>
-            <h2 className="text-4xl md:text-6xl lg:text-7xl font-extrabold tracking-tight mb-6">
-              Manage Your Academy
-              <br />
-              <span className="bg-gradient-primary bg-clip-text text-transparent">Like a Black Belt</span>
-            </h2>
-            <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-10">
-              The all-in-one platform for Brazilian Jiu-Jitsu academies. Track students, manage memberships, 
-              monitor attendance, and handle payments—all from one beautiful dashboard.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button 
-                size="lg" 
-                className="text-lg h-14 px-8 bg-gradient-primary hover:opacity-90 transition-opacity"
-                onClick={handleSubscribe}
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  "Start Your Subscription"
-                )}
-              </Button>
-              <Button 
-                size="lg" 
-                variant="outline"
-                className="text-lg h-14 px-8 border-2"
-                onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
-              >
-                Learn More
-              </Button>
-            </div>
+
+            {/* right: dashboard preview — mirrors the real product */}
+            <Reveal delay={220}>
+              <div className="relative" style={{ animation: "jm-float 7s ease-in-out infinite" }}>
+                <div
+                  className="absolute -inset-6 rounded-[2rem] pointer-events-none"
+                  style={{ background: "radial-gradient(60% 60% at 70% 0%, hsl(237 83% 27% / .1), transparent)" }}
+                />
+                <div
+                  className="relative rounded-[1.25rem] overflow-hidden"
+                  style={{
+                    background: CARD,
+                    border: `1px solid ${LINE}`,
+                    boxShadow: "0 40px 80px -32px hsl(222 47% 11% / .35)",
+                  }}
+                >
+                  {/* window chrome */}
+                  <div className="flex items-center gap-2 px-4 h-9" style={{ borderBottom: `1px solid ${LINE}`, background: CARD_HI }}>
+                    <span className="flex gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: "hsl(0 70% 67%)" }} />
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: "hsl(40 85% 60%)" }} />
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: "hsl(142 50% 55%)" }} />
+                    </span>
+                    <div
+                      className="mx-auto flex items-center gap-1.5 px-3 h-5 rounded-full text-[10px] font-medium"
+                      style={{ background: PAGE, color: MUTE, border: `1px solid ${LINE}` }}
+                    >
+                      <Lock className="h-2.5 w-2.5" />
+                      app.jitzmanager.com/dashboard
+                    </div>
+                  </div>
+
+                  {/* app body: sidebar + main */}
+                  <div className="flex" style={{ background: PAGE }}>
+                    {/* sidebar */}
+                    <div
+                      className="w-[54px] shrink-0 py-3 flex flex-col items-center gap-1.5"
+                      style={{ borderRight: `1px solid ${LINE}`, background: CARD }}
+                    >
+                      <div className="h-7 w-7 rounded-md flex items-center justify-center mb-2" style={{ background: NAVY }}>
+                        <span style={anton} className="text-[11px] text-white">JM</span>
+                      </div>
+                      {previewNav.map((item, i) => (
+                        <div
+                          key={i}
+                          className="h-8 w-8 rounded-lg flex items-center justify-center"
+                          style={{ background: item.active ? navy15 : "transparent", color: item.active ? NAVY : MUTE }}
+                        >
+                          <item.icon className="h-4 w-4" />
+                        </div>
+                      ))}
+                      <div className="mt-auto pt-3 flex flex-col gap-1.5">
+                        {previewNavSecondary.map((Icon, i) => (
+                          <div key={i} className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ color: MUTE }}>
+                            <Icon className="h-4 w-4" />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* main */}
+                    <div className="flex-1 min-w-0 p-4">
+                      <div className="flex items-center justify-between mb-3 pb-3" style={{ borderBottom: `1px solid ${LINE}` }}>
+                        <div>
+                          <div className="text-sm" style={{ ...body, fontWeight: 800, color: TEXT }}>Dashboard</div>
+                          <div className="text-[10px]" style={{ color: MUTE }}>Overview of your academy</div>
+                        </div>
+                        <div className="h-7 w-7 rounded-full" style={{ background: "hsl(220 14% 90%)", border: `1px solid ${LINE}` }} />
+                      </div>
+
+                      {/* stat cards */}
+                      <div className="grid grid-cols-2 gap-2 mb-3">
+                        {previewStats.map((s) => (
+                          <div key={s.title} className="rounded-lg p-2.5" style={{ background: CARD, border: `1px solid ${LINE}` }}>
+                            <div className="flex items-start justify-between gap-1">
+                              <div className="min-w-0">
+                                <div className="text-[9px] truncate" style={{ color: MUTE }}>{s.title}</div>
+                                <div className="text-lg leading-tight" style={{ ...body, fontWeight: 800, color: TEXT }}>{s.value}</div>
+                                <div className="text-[9px]" style={{ color: s.up ? CRIMSON : MUTE }}>{s.trend}</div>
+                              </div>
+                              <div className="h-6 w-6 rounded-md flex items-center justify-center shrink-0" style={{ background: navy15 }}>
+                                <s.icon className="h-3.5 w-3.5" style={{ color: NAVY }} />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* charts row */}
+                      <div className="grid grid-cols-5 gap-2">
+                        {/* revenue */}
+                        <div className="col-span-3 rounded-lg p-3" style={{ background: CARD, border: `1px solid ${LINE}` }}>
+                          <div className="flex items-center justify-between mb-2.5">
+                            <div className="text-[10px]" style={{ ...body, fontWeight: 700, color: TEXT }}>Monthly Revenue</div>
+                            <BarChart3 className="h-3 w-3" style={{ color: MUTE }} />
+                          </div>
+                          <div className="flex items-end gap-1 h-[52px]">
+                            {revenueBars.map((h, i) => (
+                              <div key={i} className="flex-1 rounded-t-[2px]" style={{ height: `${h}%`, background: "#82ca9d" }} />
+                            ))}
+                          </div>
+                        </div>
+                        {/* belt distribution */}
+                        <div className="col-span-2 rounded-lg p-3" style={{ background: CARD, border: `1px solid ${LINE}` }}>
+                          <div className="text-[10px] mb-2.5" style={{ ...body, fontWeight: 700, color: TEXT }}>Belt Distribution</div>
+                          <div className="flex flex-col gap-1.5">
+                            {beltDist.map((b, i) => (
+                              <div key={i} className="flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full shrink-0" style={{ background: b.c, boxShadow: dotRing(b.c) }} />
+                                <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: PAGE }}>
+                                  <div className="h-full rounded-full" style={{ width: `${(b.n / 58) * 100}%`, background: b.c, boxShadow: dotRing(b.c) }} />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Reveal>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="py-20 md:py-32 bg-muted/30">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h3 className="text-3xl md:text-5xl font-bold mb-4">
-              Everything You Need to Run Your Academy
-            </h3>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Powerful features designed specifically for Brazilian Jiu-Jitsu academy management
-            </p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+      {/* ───────────────────────── BELT MARQUEE ───────────────────────── */}
+      <div
+        className="relative py-5 overflow-hidden"
+        style={{ borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}`, background: PAGE_ALT }}
+      >
+        <div className="flex w-max" style={{ animation: "jm-marquee 32s linear infinite" }}>
+          {[0, 1].map((dup) => (
+            <div key={dup} className="flex items-center shrink-0">
+              {marqueeWords.map((w, i) => (
+                <div key={`${dup}-${w}`} className="flex items-center">
+                  <span
+                    className="block h-3 w-3 rounded-full mx-7"
+                    style={{ background: beltDots[i % beltDots.length], boxShadow: dotRing(beltDots[i % beltDots.length]) }}
+                  />
+                  <span
+                    className="uppercase text-[clamp(1.5rem,3vw,2.4rem)] whitespace-nowrap"
+                    style={{
+                      ...anton,
+                      color: i % 2 === 0 ? TEXT : "transparent",
+                      WebkitTextStroke: i % 2 === 0 ? "0" : `1px ${LINE_HI}`,
+                    }}
+                  >
+                    {w}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ───────────────────────── FEATURES ───────────────────────── */}
+      <section id="features" className="relative py-24 md:py-32" style={{ background: PAGE }}>
+        <div className="max-w-[1240px] mx-auto px-6 lg:pl-10">
+          <Reveal>
+            <div className="mb-16 max-w-2xl">
+              <span className="text-xs font-bold tracking-[0.25em] uppercase" style={{ color: NAVY }}>
+                The toolkit
+              </span>
+              <h2 className="mt-5 uppercase leading-[0.92] text-[clamp(2.25rem,5.5vw,4rem)]" style={{ ...anton, color: TEXT }}>
+                Everything the mats demand
+              </h2>
+              <p className="mt-6 text-lg" style={{ color: MUTE }}>
+                Purpose-built for Brazilian Jiu-Jitsu — designed by people who understand
+                what happens after the warm-up.
+              </p>
+            </div>
+          </Reveal>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             {features.map((feature, index) => {
               const Icon = feature.icon;
               return (
-                <div
-                  key={index}
-                  className="bg-card p-8 rounded-xl border shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-4">
-                    <Icon className="h-6 w-6 text-primary" />
+                <Reveal key={feature.title} delay={(index % 3) * 90}>
+                  <div
+                    className="group relative h-full p-7 rounded-2xl overflow-hidden transition-all duration-500 hover:-translate-y-1.5"
+                    style={{ background: CARD, border: `1px solid ${LINE}`, boxShadow: "0 1px 2px hsl(222 47% 11% / .04)" }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = feature.accent;
+                      e.currentTarget.style.boxShadow = `0 24px 50px -28px ${feature.accent}`;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = LINE;
+                      e.currentTarget.style.boxShadow = "0 1px 2px hsl(222 47% 11% / .04)";
+                    }}
+                  >
+                    <span
+                      className="absolute top-5 right-6 text-5xl opacity-[0.06] group-hover:opacity-[0.14] transition-opacity"
+                      style={{ ...anton, color: TEXT }}
+                    >
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <div
+                      className="h-12 w-12 rounded-xl flex items-center justify-center mb-6"
+                      style={{ background: `color-mix(in srgb, ${feature.accent} 12%, transparent)`, border: `1px solid color-mix(in srgb, ${feature.accent} 22%, transparent)` }}
+                    >
+                      <Icon className="h-6 w-6" style={{ color: feature.accent }} />
+                    </div>
+                    <h3 className="text-xl mb-3" style={{ ...body, fontWeight: 700, color: TEXT }}>
+                      {feature.title}
+                    </h3>
+                    <p className="leading-relaxed" style={{ color: MUTE }}>
+                      {feature.description}
+                    </p>
+                    <div
+                      className="mt-6 h-1 w-12 rounded-full transition-all duration-500 group-hover:w-20"
+                      style={{ background: feature.accent }}
+                    />
                   </div>
-                  <h4 className="text-xl font-semibold mb-3">{feature.title}</h4>
-                  <p className="text-muted-foreground">{feature.description}</p>
-                </div>
+                </Reveal>
               );
             })}
           </div>
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section className="py-20 md:py-32">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h3 className="text-3xl md:text-5xl font-bold mb-4">
-              Get Started in Minutes
-            </h3>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              Simple setup process to get your academy up and running
-            </p>
-          </div>
-          <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-8">
+      {/* ───────────────────────── HOW IT WORKS ───────────────────────── */}
+      <section className="relative py-24 md:py-32" style={{ background: PAGE_ALT, borderTop: `1px solid ${LINE}` }}>
+        <div className="max-w-[1240px] mx-auto px-6 lg:pl-10">
+          <Reveal>
+            <div className="mb-16 max-w-2xl">
+              <span className="text-xs font-bold tracking-[0.25em] uppercase" style={{ color: NAVY }}>
+                From sign-up to roll
+              </span>
+              <h2 className="mt-5 uppercase leading-[0.92] text-[clamp(2.25rem,5.5vw,4rem)]" style={{ ...anton, color: TEXT }}>
+                Live on the mats in minutes
+              </h2>
+            </div>
+          </Reveal>
+
+          <div className="grid md:grid-cols-2 gap-x-12 gap-y-10 max-w-5xl">
             {steps.map((step, index) => (
-              <div key={index} className="relative">
-                <div className="flex gap-6">
-                  <div className="flex-shrink-0">
-                    <div className="h-16 w-16 rounded-full bg-gradient-primary flex items-center justify-center text-2xl font-bold text-primary-foreground">
-                      {step.number}
-                    </div>
+              <Reveal key={step.number} delay={(index % 2) * 110}>
+                <div
+                  className="relative flex gap-6 p-7 rounded-2xl h-full"
+                  style={{ background: CARD, border: `1px solid ${LINE}`, boxShadow: "0 1px 2px hsl(222 47% 11% / .04)" }}
+                >
+                  <div
+                    className="text-[clamp(2.5rem,5vw,3.5rem)] leading-none shrink-0"
+                    style={{ ...anton, color: "transparent", WebkitTextStroke: `1.5px ${stepStroke[index]}` }}
+                  >
+                    {step.number}
                   </div>
-                  <div className="pt-2">
-                    <h4 className="text-2xl font-semibold mb-3">{step.title}</h4>
-                    <p className="text-muted-foreground text-lg">{step.description}</p>
+                  <div>
+                    <h3 className="text-xl mb-2" style={{ ...body, fontWeight: 700, color: TEXT }}>
+                      {step.title}
+                    </h3>
+                    <p className="leading-relaxed" style={{ color: MUTE }}>
+                      {step.description}
+                    </p>
                   </div>
                 </div>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Benefits Section */}
-      <section className="py-20 md:py-32 bg-muted/30">
-        <div className="container mx-auto px-4">
-          <div className="max-w-4xl mx-auto">
-            <div className="text-center mb-12">
-              <h3 className="text-3xl md:text-5xl font-bold mb-4">
-                Why Academy Owners Love Us
-              </h3>
-              <p className="text-xl text-muted-foreground">
-                Focus on what matters most—teaching and growing your academy
-              </p>
+      {/* ───────────────────────── STATS ───────────────────────── */}
+      <section className="relative py-20" style={{ background: PAGE, borderTop: `1px solid ${LINE}`, borderBottom: `1px solid ${LINE}` }}>
+        <div className="max-w-[1240px] mx-auto px-6 lg:pl-10">
+          <Reveal>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-y-10">
+              {[
+                { v: "500+", k: "Academies" },
+                { v: "50k+", k: "Students tracked" },
+                { v: "99.9%", k: "Uptime" },
+                { v: "24/7", k: "Support" },
+              ].map((s, i) => (
+                <div key={s.k} className="text-center relative">
+                  {i > 0 && (
+                    <span
+                      className="hidden md:block absolute left-0 top-1/2 -translate-y-1/2 h-12 w-px"
+                      style={{ background: LINE }}
+                    />
+                  )}
+                  <div className="text-[clamp(2.5rem,5vw,3.75rem)] leading-none" style={{ ...anton, color: NAVY }}>
+                    {s.v}
+                  </div>
+                  <div className="mt-2 text-sm font-medium" style={{ color: MUTE }}>
+                    {s.k}
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="bg-card rounded-2xl p-8 md:p-12 shadow-lg border max-w-xl mx-auto">
-              <ul className="space-y-5">
-                {benefits.map((benefit, index) => (
-                  <li key={index} className="flex items-start gap-4">
-                    <div className="h-7 w-7 rounded-full bg-green-600/10 flex items-center justify-center shrink-0 mt-0.5">
-                      <Check className="h-4 w-4 text-green-600" />
-                    </div>
-                    <span className="text-lg">{benefit}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+          </Reveal>
         </div>
       </section>
 
-      {/* Pricing Section */}
-      <section className="py-20 md:py-32">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h3 className="text-3xl md:text-5xl font-bold mb-4">
-              Simple, Transparent Pricing
-            </h3>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              One affordable plan with everything included. No hidden fees.
-            </p>
-          </div>
-          <div className="max-w-lg mx-auto">
-            <div className="bg-card border-2 border-primary rounded-2xl p-8 md:p-10 shadow-xl relative">
-              <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                <div className="bg-accent text-accent-foreground px-4 py-1 rounded-full text-sm font-semibold">
-                  BEST VALUE
+      {/* ───────────────────────── PRICING ───────────────────────── */}
+      <section id="pricing" className="relative py-24 md:py-32" style={{ background: PAGE_ALT }}>
+        <div className="max-w-[1240px] mx-auto px-6 lg:pl-10">
+          <Reveal>
+            <div className="text-center mb-14 max-w-2xl mx-auto">
+              <span className="text-xs font-bold tracking-[0.25em] uppercase" style={{ color: NAVY }}>
+                Pricing
+              </span>
+              <h2 className="mt-5 uppercase leading-[0.92] text-[clamp(2.25rem,5.5vw,4rem)]" style={{ ...anton, color: TEXT }}>
+                One belt. One price.
+              </h2>
+              <p className="mt-6 text-lg" style={{ color: MUTE }}>
+                Everything included. No per-student charges, no hidden fees, no surprises.
+              </p>
+            </div>
+          </Reveal>
+
+          <Reveal delay={100}>
+            <div className="max-w-lg mx-auto">
+              <div
+                className="relative rounded-[1.75rem] p-9 md:p-10 overflow-hidden"
+                style={{ background: CARD, border: `2px solid ${NAVY}`, boxShadow: "0 40px 90px -45px hsl(237 83% 27% / .45)" }}
+              >
+                {/* belt spectrum cap */}
+                <div className="absolute top-0 left-0 right-0 h-1.5 flex">
+                  {beltDots.map((c, i) => (
+                    <div key={i} className="flex-1" style={{ background: c }} />
+                  ))}
                 </div>
-              </div>
-              
-              <div className="text-center mb-8">
-                <h4 className="text-3xl font-bold mb-2">Standard Plan</h4>
-                <p className="text-muted-foreground">Everything you need to grow</p>
-              </div>
-              
-              <div className="flex items-baseline justify-center gap-2 mb-10">
-                <span className="text-6xl font-bold">$29</span>
-                <span className="text-2xl text-muted-foreground">/month</span>
-              </div>
 
-              <ul className="space-y-4 mb-10">
-                {[
-                  "Unlimited Students",
-                  "Attendance Tracking",
-                  "Belt Promotions",
-                  "Financial Reports",
-                  "Stripe Integration",
-                  "Schedule Management",
-                  "Email Support",
-                ].map((feature) => (
-                  <li key={feature} className="flex items-center gap-3">
-                    <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <Check className="h-4 w-4 text-primary" />
-                    </div>
-                    <span className="text-lg">{feature}</span>
-                  </li>
-                ))}
-              </ul>
+                <div className="flex items-center justify-between mb-8 mt-2">
+                  <div>
+                    <h3 className="text-2xl" style={{ ...body, fontWeight: 800, color: TEXT }}>
+                      Standard
+                    </h3>
+                    <p className="text-sm mt-0.5" style={{ color: MUTE }}>
+                      Everything you need to grow
+                    </p>
+                  </div>
+                  <span
+                    className="text-xs font-bold tracking-wider uppercase px-3 py-1.5 rounded-full"
+                    style={{ background: NAVY, color: "hsl(0 0% 100%)" }}
+                  >
+                    All-inclusive
+                  </span>
+                </div>
 
-              <Button 
-                size="lg" 
-                className="w-full text-lg h-14 bg-gradient-primary hover:opacity-90 transition-opacity" 
+                <div className="flex items-end gap-2 mb-9">
+                  <span className="text-[clamp(4rem,12vw,6rem)] leading-[0.8]" style={{ ...anton, color: TEXT }}>
+                    $39
+                  </span>
+                  <span className="text-lg mb-2" style={{ color: MUTE }}>
+                    / month
+                  </span>
+                </div>
+
+                <ul className="space-y-3.5 mb-9">
+                  {pricingFeatures.map((f, i) => {
+                    const c = beltDots[i % beltDots.length];
+                    return (
+                      <li key={f} className="flex items-center gap-3.5">
+                        <div
+                          className="h-6 w-6 rounded-full flex items-center justify-center shrink-0"
+                          style={{ background: c, boxShadow: dotRing(c) }}
+                        >
+                          <Check className="h-3.5 w-3.5" style={{ color: c === BELT.white ? "hsl(0 0% 12%)" : "hsl(0 0% 100%)" }} strokeWidth={3} />
+                        </div>
+                        <span style={{ ...body, fontWeight: 500, color: TEXT }}>{f}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                <Primary size="lg" className="w-full" onClick={handleSubscribe} disabled={loading}>
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Processing…
+                    </>
+                  ) : (
+                    "Start 14-day free trial"
+                  )}
+                </Primary>
+
+                <p className="text-center text-xs mt-5" style={{ color: MUTE }}>
+                  14-day free trial · Secure payment via Stripe · Cancel anytime
+                </p>
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ───────────────────────── CTA ───────────────────────── */}
+      <section className="relative py-28 md:py-36 overflow-hidden" style={{ background: NAVY }}>
+        <div
+          className="absolute inset-0 pointer-events-none opacity-[0.06]"
+          style={{
+            backgroundImage:
+              "linear-gradient(hsl(0 0% 100%) 1px, transparent 1px), linear-gradient(90deg, hsl(0 0% 100%) 1px, transparent 1px)",
+            backgroundSize: "64px 64px",
+          }}
+        />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: "radial-gradient(60% 90% at 50% 110%, hsl(348 83% 47% / .4), transparent 60%)" }}
+        />
+        <div className="relative max-w-3xl mx-auto px-6 text-center">
+          <Reveal>
+            <div className="flex justify-center gap-1.5 mb-8">
+              {beltDots.map((c, i) => (
+                <span key={i} className="h-2.5 w-2.5 rounded-full" style={{ background: c, boxShadow: c === BELT.black ? "0 0 0 1px hsl(0 0% 100% / .3)" : undefined }} />
+              ))}
+            </div>
+          </Reveal>
+          <Reveal delay={80}>
+            <h2 className="uppercase leading-[0.88] text-[clamp(2.75rem,8vw,5.5rem)] text-white" style={anton}>
+              Stop managing<br />on paper
+            </h2>
+          </Reveal>
+          <Reveal delay={160}>
+            <p className="mt-7 text-lg md:text-xl max-w-xl mx-auto leading-relaxed" style={{ color: "hsl(220 30% 82%)" }}>
+              Join hundreds of BJJ academies using JitzManager to handle the admin —
+              so they can get back to what they do best: teaching.
+            </p>
+          </Reveal>
+          <Reveal delay={240}>
+            <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
+              <button
                 onClick={handleSubscribe}
                 disabled={loading}
+                className="group/btn relative inline-flex items-center justify-center font-semibold tracking-tight rounded-full overflow-hidden transition-all duration-300 active:scale-[.98] hover:shadow-xl h-14 px-9 text-[1.05rem]"
+                style={{ background: "hsl(0 0% 100%)", color: NAVY, fontFamily: "'Hanken Grotesk', sans-serif" }}
               >
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Processing...
+                    Processing…
                   </>
                 ) : (
-                  "Start Your Subscription"
+                  <>
+                    Get started today
+                    <ArrowUpRight className="ml-2 h-5 w-5 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
+                  </>
                 )}
-              </Button>
-              <p className="text-center text-sm text-muted-foreground mt-6">
-                Secure payment via Stripe • Cancel anytime • No setup fees
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 md:py-32 bg-gradient-primary relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute inset-0" style={{ 
-            backgroundImage: `radial-gradient(circle at 2px 2px, currentColor 1px, transparent 1px)`,
-            backgroundSize: '40px 40px'
-          }} />
-        </div>
-        <div className="container mx-auto px-4 relative">
-          <div className="max-w-3xl mx-auto text-center text-primary-foreground">
-            <h3 className="text-3xl md:text-5xl font-bold mb-6">
-              Ready to Transform Your Academy?
-            </h3>
-            <p className="text-xl md:text-2xl mb-10 opacity-90">
-              Join hundreds of BJJ academies already using Jiu-Jitsu Manager to streamline 
-              their operations and focus on what they do best—teaching.
-            </p>
-            <Button 
-              size="lg" 
-              variant="secondary"
-              className="text-lg h-14 px-10"
-              onClick={handleSubscribe}
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                "Get Started Today"
-              )}
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t py-12">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="text-center md:text-left">
-              <h4 className="text-xl font-bold mb-2">Jiu-Jitsu Manager</h4>
-              <p className="text-sm text-muted-foreground">
-                Empowering BJJ academies worldwide
-              </p>
-            </div>
-            <div className="flex gap-6">
-              <button 
-                onClick={() => navigate("/login")}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Login
               </button>
               <button
-                onClick={handleSubscribe}
-                disabled={loading}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                onClick={() => navigate("/login")}
+                className="inline-flex items-center justify-center font-semibold tracking-tight rounded-full border transition-colors duration-300 h-14 px-9 text-[1.05rem] text-white"
+                style={{ borderColor: "hsl(0 0% 100% / .3)", fontFamily: "'Hanken Grotesk', sans-serif" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "hsl(0 0% 100% / .1)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               >
-                {loading ? "Processing..." : "Sign Up"}
+                Log in
               </button>
             </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ───────────────────────── FOOTER ───────────────────────── */}
+      <footer className="relative py-14" style={{ background: PAGE_ALT, borderTop: `1px solid ${LINE}` }}>
+        <div className="max-w-[1240px] mx-auto px-6 lg:pl-10">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
+            <div className="flex items-center gap-3">
+              <div className="relative h-8 w-8 rounded-md flex items-center justify-center" style={{ background: NAVY }}>
+                <span style={anton} className="text-[13px] text-white">JM</span>
+                <div className="absolute -bottom-0 left-0 right-0 h-[2.5px] flex rounded-b-md overflow-hidden">
+                  {beltDots.map((c, i) => (
+                    <div key={i} className="flex-1" style={{ background: c }} />
+                  ))}
+                </div>
+              </div>
+              <span className="text-lg" style={{ ...body, fontWeight: 800, color: TEXT }}>
+                Jitz<span style={{ color: NAVY }}>Manager</span>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-8">
+              {[
+                { label: "Log in", action: () => navigate("/login") },
+                { label: loading ? "Processing…" : "Sign up", action: handleSubscribe },
+                { label: "Docs", action: () => navigate("/documentation") },
+              ].map((l) => (
+                <button
+                  key={l.label}
+                  onClick={l.action}
+                  disabled={l.label === "Processing…"}
+                  className="text-sm font-medium transition-colors disabled:opacity-50"
+                  style={{ color: MUTE }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = TEXT)}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = MUTE)}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="mt-8 pt-8 border-t text-center text-sm text-muted-foreground">
-            © {new Date().getFullYear()} Jiu-Jitsu Manager. All rights reserved.
+
+          <div
+            className="mt-10 pt-8 flex flex-col md:flex-row justify-between items-center gap-3"
+            style={{ borderTop: `1px solid ${LINE}` }}
+          >
+            <p className="text-sm" style={{ color: MUTE }}>
+              © {new Date().getFullYear()} JitzManager. All rights reserved.
+            </p>
+            <p className="text-sm" style={{ color: MUTE }}>
+              Empowering BJJ academies worldwide — Oss.
+            </p>
           </div>
         </div>
       </footer>

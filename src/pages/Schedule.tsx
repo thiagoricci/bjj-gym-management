@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -10,14 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -41,10 +33,27 @@ import * as z from "zod";
 import { toast } from "sonner";
 import { Plus, Trash2, Edit } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { getDayOfWeekInTimezone } from "@/lib/date";
 import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@/components/ui/toggle-group";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
+
+interface ScheduleEntry {
+  id: number;
+  name: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  organization_id: string;
+}
 
 const daysOfWeek = [
   "Sunday",
@@ -54,6 +63,22 @@ const daysOfWeek = [
   "Thursday",
   "Friday",
   "Saturday",
+];
+
+const dayAbbrevs = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const HOUR_HEIGHT = 64;
+const GAP_HEIGHT = 24;
+
+const CLASS_COLORS = [
+  "bg-blue-500/15 border-blue-500/40 text-blue-700 dark:text-blue-300",
+  "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300",
+  "bg-violet-500/15 border-violet-500/40 text-violet-700 dark:text-violet-300",
+  "bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-300",
+  "bg-rose-500/15 border-rose-500/40 text-rose-700 dark:rose-300",
+  "bg-cyan-500/15 border-cyan-500/40 text-cyan-700 dark:text-cyan-300",
+  "bg-orange-500/15 border-orange-500/40 text-orange-700 dark:text-orange-300",
+  "bg-pink-500/15 border-pink-500/40 text-pink-700 dark:text-pink-300",
 ];
 
 const addFormSchema = z.object({
@@ -72,10 +97,42 @@ const editFormSchema = z.object({
   end_time: z.string().min(1, "End time is required"),
 });
 
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function formatTime(time: string): string {
+  const [hours, minutes] = time.split(":");
+  const date = new Date();
+  date.setHours(parseInt(hours));
+  date.setMinutes(parseInt(minutes));
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function to24(hour12: number, ampm: "AM" | "PM"): number {
+  if (ampm === "AM") return hour12 === 12 ? 0 : hour12;
+  return hour12 === 12 ? 12 : hour12 + 12;
+}
+
+function to12(h24: number): { hour: number; ampm: "AM" | "PM" } {
+  if (h24 === 0) return { hour: 12, ampm: "AM" };
+  if (h24 < 12) return { hour: h24, ampm: "AM" };
+  if (h24 === 12) return { hour: 12, ampm: "PM" };
+  return { hour: h24 - 12, ampm: "PM" };
+}
+
+const TIME_OPTIONS: string[] = [];
+for (let h = 0; h < 24; h++) {
+  for (let m = 0; m < 60; m += 15) {
+    TIME_OPTIONS.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+  }
+}
+
 export default function Schedule() {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [selectedSchedule, setSelectedSchedule] = useState<any>(null);
+  const [selectedSchedule, setSelectedSchedule] = useState<ScheduleEntry | null>(null);
   const { user, organization } = useAuth();
   const queryClient = useQueryClient();
 
@@ -83,7 +140,7 @@ export default function Schedule() {
     resolver: zodResolver(addFormSchema),
     defaultValues: {
       name: "",
-      days_of_week: ["1"], // Monday
+      days_of_week: ["1"],
       start_time: "18:00",
       end_time: "19:00",
     },
@@ -189,7 +246,7 @@ export default function Schedule() {
     updateScheduleMutation.mutate(values);
   };
 
-  const handleEditClick = (schedule: any) => {
+  const handleEditClick = (schedule: ScheduleEntry) => {
     setSelectedSchedule(schedule);
     editForm.reset({
       name: schedule.name,
@@ -200,13 +257,66 @@ export default function Schedule() {
     setIsEditDialogOpen(true);
   };
 
-  const formatTime = (time: string) => {
-    const [hours, minutes] = time.split(":");
-    const date = new Date();
-    date.setHours(parseInt(hours));
-    date.setMinutes(parseInt(minutes));
-    return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  };
+  const { rows, hourTop, totalHeight, colorMap } = useMemo(() => {
+    const empty = {
+      rows: [] as Array<{ type: "hour"; hour: number } | { type: "gap" }>,
+      hourTop: new Map<number, number>(),
+      totalHeight: 0,
+      colorMap: {} as Record<string, number>,
+    };
+    if (!schedules || schedules.length === 0) return empty;
+
+    // Only show hours that actually contain a class — gap hours with nothing
+    // scheduled on any day collapse into a short break instead of empty rows.
+    const occupied = new Set<number>();
+    schedules.forEach((s: ScheduleEntry) => {
+      const startH = parseInt(s.start_time.split(":")[0], 10);
+      const endH = parseInt(s.end_time.split(":")[0], 10);
+      const endM = parseInt(s.end_time.split(":")[1], 10);
+      const lastHour = endM > 0 ? endH : endH - 1;
+      occupied.add(startH);
+      for (let h = startH; h <= lastHour; h++) {
+        occupied.add(h);
+      }
+    });
+
+    const vHours = [...occupied].sort((a, b) => a - b);
+
+    const layoutRows: typeof empty.rows = [];
+    const tops = new Map<number, number>();
+    let y = 0;
+    vHours.forEach((h) => {
+      layoutRows.push({ type: "hour", hour: h });
+      tops.set(h, y);
+      y += HOUR_HEIGHT;
+    });
+
+    const uniqueNames = [...new Set(schedules.map((s: ScheduleEntry) => s.name))];
+    const cMap: Record<string, number> = {};
+    uniqueNames.forEach((name, i) => {
+      cMap[name] = i % CLASS_COLORS.length;
+    });
+
+    return { rows: layoutRows, hourTop: tops, totalHeight: y, colorMap: cMap };
+  }, [schedules]);
+
+  // Pixel offset of an hour's row top (a class's hours are contiguous, so no
+  // gap ever falls inside a single block).
+  const getHourTop = (hour: number): number => hourTop.get(hour) ?? 0;
+
+  const todayDayOfWeek = getDayOfWeekInTimezone(organization?.timezone);
+
+  const schedulesByDay = useMemo(() => {
+    const map: Record<number, ScheduleEntry[]> = {};
+    for (let d = 0; d <= 6; d++) {
+      map[d] = [];
+    }
+    schedules?.forEach((s: ScheduleEntry) => {
+      map[s.day_of_week] = map[s.day_of_week] || [];
+      map[s.day_of_week].push(s);
+    });
+    return map;
+  }, [schedules]);
 
   if (isLoading) return <div>Loading...</div>;
 
@@ -214,7 +324,9 @@ export default function Schedule() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-foreground">Class Schedule</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">
+            Class Schedule
+          </h2>
           <p className="text-muted-foreground">Manage your weekly class schedule</p>
         </div>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -232,7 +344,10 @@ export default function Schedule() {
               </DialogDescription>
             </DialogHeader>
             <Form {...addForm}>
-              <form onSubmit={addForm.handleSubmit(onAddSubmit)} className="space-y-4">
+              <form
+                onSubmit={addForm.handleSubmit(onAddSubmit)}
+                className="space-y-4"
+              >
                 <FormField
                   control={addForm.control}
                   name="name"
@@ -240,7 +355,10 @@ export default function Schedule() {
                     <FormItem>
                       <FormLabel>Class Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g. Fundamentals, Advanced Gi" {...field} />
+                        <Input
+                          placeholder="e.g. Fundamentals, Advanced Gi"
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -282,9 +400,20 @@ export default function Schedule() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Start Time</FormLabel>
-                        <FormControl>
-                          <Input type="time" {...field} />
-                        </FormControl>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Start time" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {TIME_OPTIONS.map((t) => (
+                              <SelectItem key={t} value={t}>
+                                {formatTime(t)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -295,16 +424,30 @@ export default function Schedule() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>End Time</FormLabel>
-                        <FormControl>
-                          <Input type="time" {...field} />
-                        </FormControl>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="End time" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {TIME_OPTIONS.map((t) => (
+                              <SelectItem key={t} value={t}>
+                                {formatTime(t)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 </div>
                 <DialogFooter>
-                  <Button type="submit" disabled={createScheduleMutation.isPending}>
+                  <Button
+                    type="submit"
+                    disabled={createScheduleMutation.isPending}
+                  >
                     {createScheduleMutation.isPending ? "Adding..." : "Add Class"}
                   </Button>
                 </DialogFooter>
@@ -314,54 +457,156 @@ export default function Schedule() {
         </Dialog>
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Day</TableHead>
-              <TableHead>Time</TableHead>
-              <TableHead>Class Name</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {schedules?.map((schedule) => (
-              <TableRow key={schedule.id}>
-                <TableCell className="font-medium">
-                  {daysOfWeek[schedule.day_of_week]}
-                </TableCell>
-                <TableCell>
-                  {formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}
-                </TableCell>
-                <TableCell>{schedule.name}</TableCell>
-                <TableCell className="text-right">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleEditClick(schedule)}
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <div className="min-w-[800px]">
+            <div className="grid grid-cols-[64px_repeat(7,minmax(0,1fr))] border-b bg-muted/30">
+              <div className="h-9 flex items-center justify-center border-r" />
+              {dayAbbrevs.map((day, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "h-9 flex items-center justify-center text-sm font-medium border-r last:border-r-0",
+                    i === todayDayOfWeek
+                      ? "text-primary font-semibold bg-primary/5"
+                      : "text-muted-foreground"
+                  )}
+                >
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            <div
+              className="grid grid-cols-[64px_repeat(7,minmax(0,1fr))]"
+              style={{ height: totalHeight }}
+            >
+              <div className="relative border-r">
+                {rows.map((row, i) =>
+                  row.type === "gap" ? (
+                    <div
+                      key={`gap-${i}`}
+                      className="flex items-center justify-end pr-2"
+                      style={{ height: GAP_HEIGHT }}
+                    >
+                      <span className="text-[10px] text-muted-foreground/40">⋅⋅⋅</span>
+                    </div>
+                  ) : (
+                    <div
+                      key={row.hour}
+                      className="border-b flex items-center justify-center"
+                      style={{ height: HOUR_HEIGHT }}
+                    >
+                      <span className="text-[11px] text-muted-foreground leading-none">
+                        {row.hour === 0
+                          ? "12 AM"
+                          : row.hour < 12
+                            ? `${row.hour} AM`
+                            : row.hour === 12
+                              ? "12 PM"
+                              : `${row.hour - 12} PM`}
+                      </span>
+                    </div>
+                  )
+                )}
+              </div>
+
+              {dayAbbrevs.map((_, dayIndex) => {
+                const daySchedules = schedulesByDay[dayIndex] || [];
+
+                return (
+                  <div
+                    key={dayIndex}
+                    className={cn(
+                      "relative border-r last:border-r-0",
+                      dayIndex === todayDayOfWeek && "bg-primary/5"
+                    )}
                   >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-destructive hover:text-destructive/90"
-                    onClick={() => deleteScheduleMutation.mutate(schedule.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-            {schedules?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                  No classes scheduled yet. Add one to get started.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+                    {rows.map((row, i) =>
+                      row.type === "gap" ? (
+                        <div
+                          key={`gap-${i}`}
+                          className="bg-muted/20"
+                          style={{ height: GAP_HEIGHT }}
+                        />
+                      ) : (
+                        <div
+                          key={row.hour}
+                          className="border-b border-border/50"
+                          style={{ height: HOUR_HEIGHT }}
+                        />
+                      )
+                    )}
+
+                    {daySchedules.map((schedule: ScheduleEntry) => {
+                      const startH = parseInt(schedule.start_time.split(":")[0], 10);
+                      const startM = parseInt(schedule.start_time.split(":")[1], 10);
+                      const endH = parseInt(schedule.end_time.split(":")[0], 10);
+                      const endM = parseInt(schedule.end_time.split(":")[1], 10);
+
+                      const lastHour = endM > 0 ? endH : endH - 1;
+                      const top = getHourTop(startH) + (startM / 60) * HOUR_HEIGHT;
+                      const bottom =
+                        getHourTop(lastHour) +
+                        ((endM > 0 ? endM : 60) / 60) * HOUR_HEIGHT;
+                      const height = bottom - top;
+                      const colorIndex = colorMap[schedule.name] ?? 0;
+
+                      return (
+                        <DropdownMenu key={schedule.id}>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              className={cn(
+                                "absolute inset-x-1 rounded-md border px-1.5 py-0.5",
+                                "text-[11px] font-medium cursor-pointer overflow-hidden",
+                                "transition-opacity hover:opacity-80 focus:outline-none focus:ring-1 focus:ring-ring",
+                                CLASS_COLORS[colorIndex]
+                              )}
+                              style={{ top, height: Math.max(height, 20) }}
+                            >
+                              <span className="block truncate leading-tight font-semibold">
+                                {schedule.name}
+                              </span>
+                              {height >= 36 && (
+                                <span className="block truncate opacity-70 text-[10px]">
+                                  {formatTime(schedule.start_time)} –{" "}
+                                  {formatTime(schedule.end_time)}
+                                </span>
+                              )}
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start">
+                            <DropdownMenuItem
+                              onClick={() => handleEditClick(schedule)}
+                            >
+                              <Edit className="mr-2 h-4 w-4" />
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() =>
+                                deleteScheduleMutation.mutate(schedule.id)
+                              }
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {schedules?.length === 0 && (
+          <div className="flex items-center justify-center py-16 text-muted-foreground">
+            No classes scheduled yet. Add one to get started.
+          </div>
+        )}
       </div>
 
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
@@ -373,7 +618,10 @@ export default function Schedule() {
             </DialogDescription>
           </DialogHeader>
           <Form {...editForm}>
-            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+            <form
+              onSubmit={editForm.handleSubmit(onEditSubmit)}
+              className="space-y-4"
+            >
               <FormField
                 control={editForm.control}
                 name="name"
@@ -381,7 +629,10 @@ export default function Schedule() {
                   <FormItem>
                     <FormLabel>Class Name</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g. Fundamentals, Advanced Gi" {...field} />
+                      <Input
+                        placeholder="e.g. Fundamentals, Advanced Gi"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -393,7 +644,12 @@ export default function Schedule() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Day of Week</FormLabel>
-                    <Select onValueChange={(value) => field.onChange(parseInt(value, 10))} defaultValue={field.value.toString()}>
+                    <Select
+                      onValueChange={(value) =>
+                        field.onChange(parseInt(value, 10))
+                      }
+                      defaultValue={field.value.toString()}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select a day" />
@@ -418,9 +674,20 @@ export default function Schedule() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Start Time</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Start time" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {TIME_OPTIONS.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {formatTime(t)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -431,19 +698,37 @@ export default function Schedule() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>End Time</FormLabel>
-                      <FormControl>
-                        <Input type="time" {...field} />
-                      </FormControl>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="End time" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {TIME_OPTIONS.map((t) => (
+                            <SelectItem key={t} value={t}>
+                              {formatTime(t)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
               <DialogFooter>
-                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditDialogOpen(false)}
+                >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={updateScheduleMutation.isPending}>
+                <Button
+                  type="submit"
+                  disabled={updateScheduleMutation.isPending}
+                >
                   {updateScheduleMutation.isPending ? "Saving..." : "Save Changes"}
                 </Button>
               </DialogFooter>

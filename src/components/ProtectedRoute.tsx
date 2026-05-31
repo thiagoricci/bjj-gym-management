@@ -2,8 +2,14 @@ import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
-export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { session, profile, loading } = useAuth();
+export default function ProtectedRoute({
+  children,
+  requireAdmin = false,
+}: {
+  children: React.ReactNode;
+  requireAdmin?: boolean;
+}) {
+  const { session, profile, isAdmin, loading } = useAuth();
   const [profileCheckComplete, setProfileCheckComplete] = useState(false);
 
   // If user is authenticated but no profile, wait a bit for profile to load
@@ -29,6 +35,10 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
   if (!profile || !profile.organization_id) {
     return <Navigate to="/onboarding" />;
+  }
+
+  if (requireAdmin && !isAdmin) {
+    return <Navigate to="/dashboard" />;
   }
 
   return <>{children}</>;

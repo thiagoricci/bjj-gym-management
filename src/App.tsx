@@ -15,6 +15,7 @@ import MembershipDetail from "./pages/MembershipDetail";
 import Attendance from "./pages/Attendance";
 import Schedule from "./pages/Schedule";
 import Settings from "./pages/Settings";
+import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import SignUp from "./pages/SignUp";
@@ -31,6 +32,7 @@ import HelpCenter from "./pages/HelpCenter";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ThemeProvider, AccountThemeScope } from "./contexts/ThemeContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import ScrollToTop from "./components/ScrollToTop";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +44,7 @@ const App = () => (
       <ThemeProvider>
         <AuthProvider>
           <BrowserRouter>
+          <ScrollToTop />
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
@@ -65,7 +68,8 @@ const App = () => (
               <Route path="/membership/:id" element={<ProtectedRoute><Layout><MembershipDetail /></Layout></ProtectedRoute>} />
               <Route path="/attendance" element={<ProtectedRoute><Layout><Attendance /></Layout></ProtectedRoute>} />
               <Route path="/schedule" element={<ProtectedRoute><Layout><Schedule /></Layout></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute><Layout><Settings /></Layout></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute requireAdmin><Layout><Settings /></Layout></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
               <Route path="/help-center" element={<ProtectedRoute><Layout><HelpCenter /></Layout></ProtectedRoute>} />
               <Route path="/payment-success" element={<ProtectedRoute><Layout><PaymentSuccess /></Layout></ProtectedRoute>} />
               <Route path="/payment-cancelled" element={<ProtectedRoute><Layout><PaymentCancelled /></Layout></ProtectedRoute>} />

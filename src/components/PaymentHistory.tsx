@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/tooltip";
 import { formatDate } from "@/lib/date";
 import { useAuth } from "@/contexts/AuthContext";
-import { DollarSign, CheckCircle2, XCircle, HelpCircle } from "lucide-react";
+import { DollarSign, CheckCircle2, XCircle, HelpCircle, Clock } from "lucide-react";
 
 interface Payment {
   id: number;
@@ -42,6 +42,13 @@ function StatusBadge({ status, failureReason }: { status: string; failureReason?
         <Badge className="bg-green-100 text-green-800 border-green-200 hover:bg-green-100">
           <CheckCircle2 className="h-3 w-3 mr-1" />
           Paid
+        </Badge>
+      );
+    case "scheduled":
+      return (
+        <Badge className="bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100">
+          <Clock className="h-3 w-3 mr-1" />
+          Scheduled
         </Badge>
       );
     case "failed":

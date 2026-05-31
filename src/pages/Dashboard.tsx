@@ -12,6 +12,8 @@ import FailedPayments from "@/components/dashboard/FailedPayments";
 import { useAuth } from "@/contexts/AuthContext";
 import { toZonedTime } from "date-fns-tz";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Card, CardContent } from "@/components/ui/card";
  
  export default function Dashboard() {
    const { organization } = useAuth();
@@ -31,7 +33,39 @@ import { Button } from "@/components/ui/button";
   });
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return (
+      <div className="space-y-6">
+        <div className="pb-4 border-b border-border/60">
+          <Skeleton className="h-9 w-48 mb-2" />
+          <Skeleton className="h-4 w-64" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i} className="overflow-hidden">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-2">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-8 w-16" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                  <Skeleton className="h-12 w-12 rounded-xl" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-6">
+                <Skeleton className="h-52 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   const timezone = organization?.timezone || "UTC";
@@ -106,12 +140,10 @@ import { Button } from "@/components/ui/button";
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-       <div>
-         <h2 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h2>
-         <p className="text-muted-foreground">Overview of your academy</p>
-       </div>
-     </div>
+      <div className="pb-4 border-b border-border/60">
+        <h2 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h2>
+        <p className="text-muted-foreground mt-1">Overview of your academy</p>
+      </div>
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
