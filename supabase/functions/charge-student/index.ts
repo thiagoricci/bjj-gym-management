@@ -31,7 +31,7 @@ serve(async (req: Request) => {
       );
     }
 
-    const { studentId, planId, paymentMethodId, billingStartDate } = await req.json();
+    const { studentId, planId, paymentMethodId, billingStartDate, discount } = await req.json();
 
     if (!studentId || !planId || !paymentMethodId) {
       return new Response(
@@ -178,6 +178,20 @@ serve(async (req: Request) => {
       expand: ["latest_invoice.payment_intent"],
     };
 
+    // Apply a first-period discount via a one-time coupon (duration: "once").
+    // Supports { type: "percent", value } or { type: "amount", value } (value in dollars).
+    if (discount && discount.value > 0) {
+      const couponParams: Stripe.CouponCreateParams = { duration: "once" };
+      if (discount.type === "percent") {
+        couponParams.percent_off = Math.min(100, Number(discount.value));
+      } else {
+        couponParams.amount_off = Math.round(Number(discount.value) * 100);
+        couponParams.currency = "usd";
+      }
+      const coupon = await stripe.coupons.create(couponParams, stripeOptions);
+      subscriptionParams.discounts = [{ coupon: coupon.id }];
+    }
+
     // Delay first billing if a future start date was requested
     if (billingStartDate) {
       const startTs = Math.floor(new Date(billingStartDate).getTime() / 1000);
@@ -223,6 +237,9 @@ serve(async (req: Request) => {
       // Record payment
       const planPrice = parseFloat(plan.price);
       const isScheduled = subscription.status === "trialing";
+      // For an immediate charge, record what was actually charged (reflects any discount);
+      // for a scheduled charge there's no invoice yet, so fall back to the plan price.
+      const chargedNow = invoice?.amount_paid != null ? invoice.amount_paid / 100 : planPrice;
       if (student.organization_id && (!isScheduled || planPrice > 0)) {
         const paymentStatus = isScheduled ? "scheduled" : "paid";
         const paymentDate = isScheduled && billingStartDate
@@ -234,9 +251,10 @@ serve(async (req: Request) => {
           .insert({
             student_id: parseInt(studentId.toString()),
             organization_id: student.organization_id,
-            amount: planPrice,
+            amount: isScheduled ? planPrice : chargedNow,
             date: paymentDate,
-            status: paymentStatus
+            status: paymentStatus,
+            stripe_payment_intent_id: paymentIntent?.id ?? null,
           })
           .select();
 

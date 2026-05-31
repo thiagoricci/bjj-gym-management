@@ -262,6 +262,23 @@ serve(async (req) => {
           const paymentStatus = isScheduled ? "scheduled" : "paid";
           const paymentAmount = isScheduled ? planPrice : chargedAmount;
 
+          // For an immediate charge, resolve the PaymentIntent so the payment is refundable.
+          // (Scheduled charges have no PaymentIntent yet — invoice.paid links it later.)
+          let paymentIntentId: string | null = null;
+          if (!isScheduled && session.subscription) {
+            try {
+              const sub = await stripe.subscriptions.retrieve(
+                session.subscription as string,
+                { expand: ["latest_invoice"] },
+                event.account ? { stripeAccount: event.account } : undefined,
+              );
+              const latestInvoice = sub.latest_invoice as Stripe.Invoice | null;
+              paymentIntentId = (latestInvoice?.payment_intent as string) || null;
+            } catch (e) {
+              console.error("Could not resolve PaymentIntent for checkout session:", e);
+            }
+          }
+
           console.log(`Inserting payment for student ${studentId} in org ${organizationId} — status: ${paymentStatus}`);
           const { data: paymentData, error: paymentError } = await supabaseAdmin
             .from("payments")
@@ -271,6 +288,7 @@ serve(async (req) => {
               amount: paymentAmount,
               date: new Date().toISOString(),
               status: paymentStatus,
+              stripe_payment_intent_id: paymentIntentId,
             })
             .select();
 
@@ -332,6 +350,7 @@ serve(async (req) => {
             console.log("No studentId/organizationId in subscription metadata, skipping (likely a platform subscription)");
           } else {
             const amount = invoice.amount_paid ? invoice.amount_paid / 100 : 0;
+            const invoicePaymentIntentId = (invoice.payment_intent as string) || null;
 
             if (amount > 0) {
               // Promote a scheduled record to paid if one exists, otherwise insert fresh
@@ -344,9 +363,17 @@ serve(async (req) => {
                 .maybeSingle();
 
               if (scheduledPayment) {
+                // Sync the actual charged amount (reflects any first-period discount)
+                // and link the PaymentIntent so the payment can be refunded later.
                 const { error: updateError } = await supabaseAdmin
                   .from("payments")
-                  .update({ status: "paid", date: new Date().toISOString(), stripe_invoice_id: invoice.id })
+                  .update({
+                    status: "paid",
+                    amount,
+                    date: new Date().toISOString(),
+                    stripe_invoice_id: invoice.id,
+                    stripe_payment_intent_id: invoicePaymentIntentId,
+                  })
                   .eq("id", scheduledPayment.id);
                 if (updateError) {
                   console.error("Error promoting scheduled payment to paid:", updateError);
@@ -361,6 +388,7 @@ serve(async (req) => {
                   date: new Date().toISOString(),
                   status: "paid",
                   stripe_invoice_id: invoice.id,
+                  stripe_payment_intent_id: invoicePaymentIntentId,
                 });
 
                 if (paymentError) {
@@ -488,6 +516,44 @@ serve(async (req) => {
           console.error("Error recording failed payment intent:", JSON.stringify(paymentError));
         } else {
           console.log(`Failed payment intent recorded for student: ${studentId}`, paymentData);
+        }
+      }
+    } else if (event.type === "charge.refunded") {
+      // Keep our records in sync with refunds — whether issued by our refund-payment
+      // function or directly from the Stripe dashboard.
+      const charge = event.data.object as Stripe.Charge;
+      const paymentIntentId = charge.payment_intent as string | null;
+      console.log("=== PROCESSING CHARGE REFUNDED ===", { paymentIntentId, amount_refunded: charge.amount_refunded });
+
+      if (!paymentIntentId) {
+        console.log("No payment_intent on charge, skipping");
+      } else {
+        const { data: payment } = await supabaseAdmin
+          .from("payments")
+          .select("id, amount")
+          .eq("stripe_payment_intent_id", paymentIntentId)
+          .maybeSingle();
+
+        if (!payment) {
+          console.log("No matching payment for refunded charge, skipping");
+        } else {
+          const refundedAmount = charge.amount_refunded ? charge.amount_refunded / 100 : 0;
+          const fullyRefunded = refundedAmount >= Number(payment.amount) - 0.0001;
+
+          const { error: refundUpdateError } = await supabaseAdmin
+            .from("payments")
+            .update({
+              refunded_amount: refundedAmount,
+              refunded_at: new Date().toISOString(),
+              status: fullyRefunded ? "refunded" : "partially_refunded",
+            })
+            .eq("id", payment.id);
+
+          if (refundUpdateError) {
+            console.error("Error syncing refunded charge:", refundUpdateError);
+          } else {
+            console.log(`Refund synced for payment ${payment.id}, refunded: ${refundedAmount}`);
+          }
         }
       }
     } else {

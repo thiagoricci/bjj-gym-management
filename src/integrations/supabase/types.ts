@@ -154,7 +154,11 @@ export type Database = {
           failure_reason: string | null
           id: number
           organization_id: string
+          refund_reason: string | null
+          refunded_amount: number
+          refunded_at: string | null
           status: string
+          stripe_payment_intent_id: string | null
           student_id: number | null
         }
         Insert: {
@@ -164,7 +168,11 @@ export type Database = {
           failure_reason?: string | null
           id?: number
           organization_id: string
+          refund_reason?: string | null
+          refunded_amount?: number
+          refunded_at?: string | null
           status?: string
+          stripe_payment_intent_id?: string | null
           student_id?: number | null
         }
         Update: {
@@ -174,7 +182,11 @@ export type Database = {
           failure_reason?: string | null
           id?: number
           organization_id?: string
+          refund_reason?: string | null
+          refunded_amount?: number
+          refunded_at?: string | null
           status?: string
+          stripe_payment_intent_id?: string | null
           student_id?: number | null
         }
         Relationships: [

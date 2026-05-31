@@ -25,7 +25,7 @@ serve(async (req: Request) => {
       );
     }
 
-    const { studentId, planId, organizationId, billingStartDate } = await req.json();
+    const { studentId, planId, organizationId, billingStartDate, discount } = await req.json();
     
     console.log("=== CREATE CHECKOUT SESSION START ===");
     console.log("Received request:", { studentId, planId, organizationId });
@@ -189,11 +189,29 @@ serve(async (req: Request) => {
       cancelUrl: `${siteUrl}/payment-cancelled`,
     });
     
+    // Apply a first-period discount via a one-time coupon (duration: "once").
+    // Supports { type: "percent", value } or { type: "amount", value } (value in dollars).
+    let discountId: string | undefined;
+    if (discount && discount.value > 0) {
+      const couponParams: Stripe.CouponCreateParams = { duration: "once" };
+      if (discount.type === "percent") {
+        couponParams.percent_off = Math.min(100, Number(discount.value));
+      } else {
+        couponParams.amount_off = Math.round(Number(discount.value) * 100);
+        couponParams.currency = "usd";
+      }
+      const coupon = await stripe.coupons.create(couponParams, {
+        stripeAccount: organization.stripe_account_id,
+      });
+      discountId = coupon.id;
+    }
+
     try {
       const session = await stripe.checkout.sessions.create(
         {
           payment_method_types: ["card"],
           customer: customerId,
+          ...(discountId ? { discounts: [{ coupon: discountId }] } : {}),
           line_items: [
             {
               price_data: {

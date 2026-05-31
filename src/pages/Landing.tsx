@@ -951,7 +951,7 @@ export default function Landing() {
             </span>
           </Reveal>
           <Reveal delay={80}>
-            <h2 className="uppercase leading-[0.88] text-[clamp(2.75rem,8vw,5.5rem)] text-white" style={anton}>
+            <h2 className="mt-8 uppercase leading-[0.88] text-[clamp(2.75rem,8vw,5.5rem)] text-white" style={anton}>
               Made by a<br />Black Belt
             </h2>
           </Reveal>

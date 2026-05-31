@@ -6,8 +6,14 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CreditCard, DollarSign, Calendar, Shield, Check, CalendarClock } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { CreditCard, DollarSign, Calendar, Shield, Check, CalendarClock, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+export interface MembershipDiscount {
+  type: "percent" | "amount";
+  value: number;
+}
 
 interface MembershipPlan {
   id: number;
@@ -32,7 +38,7 @@ interface ActivateStudentDialogProps {
   plans: MembershipPlan[];
   selectedPlanId: string;
   onSelectPlan: (planId: string) => void;
-  onProceedToPayment: (paymentMethodId?: string, billingStartDate?: string) => void;
+  onProceedToPayment: (paymentMethodId?: string, billingStartDate?: string, discount?: MembershipDiscount) => void;
   onActivateFreePlan: () => void;
   isProcessing: boolean;
   studentName: string;
@@ -59,10 +65,16 @@ export default function ActivateStudentDialog({
 }: ActivateStudentDialogProps) {
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState<string>("new");
   const [billingStartDate, setBillingStartDate] = useState<string>(todayString());
+  const [discountEnabled, setDiscountEnabled] = useState(false);
+  const [discountType, setDiscountType] = useState<"percent" | "amount">("percent");
+  const [discountValue, setDiscountValue] = useState<string>("");
 
   useEffect(() => {
     if (open) {
       setBillingStartDate(todayString());
+      setDiscountEnabled(false);
+      setDiscountType("percent");
+      setDiscountValue("");
       if (paymentMethods && paymentMethods.length > 0) {
         setSelectedPaymentMethodId(paymentMethods[0].id);
       } else {
@@ -85,13 +97,32 @@ export default function ActivateStudentDialog({
   const isFreePlan = selectedPlan?.price === "0" || selectedPlan?.price === "0.00";
   const isFutureStart = billingStartDate > todayString();
 
+  const planPrice = selectedPlan ? parseFloat(selectedPlan.price) : 0;
+  const parsedDiscount = parseFloat(discountValue);
+  const discountIsValid =
+    discountEnabled &&
+    !isNaN(parsedDiscount) &&
+    parsedDiscount > 0 &&
+    (discountType === "percent" ? parsedDiscount <= 100 : parsedDiscount < planPrice);
+
+  // Preview of the discounted first-period amount (full price resumes afterward).
+  const firstAmount = discountIsValid
+    ? discountType === "percent"
+      ? planPrice * (1 - parsedDiscount / 100)
+      : planPrice - parsedDiscount
+    : planPrice;
+
+  const buildDiscount = (): MembershipDiscount | undefined =>
+    discountIsValid ? { type: discountType, value: parsedDiscount } : undefined;
+
   const handleAction = () => {
     if (isFreePlan) {
       onActivateFreePlan();
     } else {
       onProceedToPayment(
         selectedPaymentMethodId === "new" ? undefined : selectedPaymentMethodId,
-        billingStartDate !== todayString() ? billingStartDate : undefined
+        billingStartDate !== todayString() ? billingStartDate : undefined,
+        buildDiscount()
       );
     }
   };
@@ -172,10 +203,22 @@ export default function ActivateStudentDialog({
                         {isFutureStart ? "Amount Due on Start Date:" : "Amount Due Today:"}
                       </span>
                     </div>
-                    <span className="text-2xl font-bold text-foreground">
-                      {isFreePlan ? "Free" : `$${selectedPlan.price}`}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {discountIsValid && !isFreePlan && (
+                        <span className="text-base text-muted-foreground line-through">
+                          ${planPrice.toFixed(2)}
+                        </span>
+                      )}
+                      <span className="text-2xl font-bold text-foreground">
+                        {isFreePlan ? "Free" : `$${firstAmount.toFixed(2)}`}
+                      </span>
+                    </div>
                   </div>
+                  {discountIsValid && !isFreePlan && (
+                    <p className="text-xs text-emerald-600 text-right mt-1">
+                      Discount applies to the first {selectedPlan.period.toLowerCase()} only; renews at ${planPrice.toFixed(2)}.
+                    </p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -208,6 +251,58 @@ export default function ActivateStudentDialog({
                 <p className="text-xs text-muted-foreground">
                   Billing starts today. Change this if the student needs to wait for their payday.
                 </p>
+              )}
+            </div>
+          )}
+
+          {/* First-period discount — only for paid plans */}
+          {!isFreePlan && selectedPlan && (
+            <div className="space-y-3 rounded-lg border border-border p-4">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2 cursor-pointer" htmlFor="discount-toggle">
+                  <Tag className="h-4 w-4 text-muted-foreground" />
+                  Apply first-period discount
+                </Label>
+                <Switch
+                  id="discount-toggle"
+                  checked={discountEnabled}
+                  onCheckedChange={setDiscountEnabled}
+                />
+              </div>
+              {discountEnabled && (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Select value={discountType} onValueChange={(v) => setDiscountType(v as "percent" | "amount")}>
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="percent">% off</SelectItem>
+                        <SelectItem value="amount">$ off</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min="0"
+                      step={discountType === "percent" ? "1" : "0.01"}
+                      max={discountType === "percent" ? "100" : undefined}
+                      placeholder={discountType === "percent" ? "e.g. 30" : "e.g. 20.00"}
+                      value={discountValue}
+                      onChange={(e) => setDiscountValue(e.target.value)}
+                      className="flex-1"
+                    />
+                  </div>
+                  {discountValue !== "" && !discountIsValid && (
+                    <p className="text-xs text-destructive">
+                      {discountType === "percent"
+                        ? "Enter a percentage between 1 and 100."
+                        : `Enter an amount greater than $0 and less than the plan price ($${planPrice.toFixed(2)}).`}
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Applied to the first charge only. The membership renews at full price afterward.
+                  </p>
+                </div>
               )}
             </div>
           )}

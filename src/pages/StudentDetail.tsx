@@ -41,7 +41,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import StudentProfileCard from "@/components/StudentProfileCard";
 import PersonalInformationCard from "@/components/PersonalInformationCard";
 import { loadStripe } from "@stripe/stripe-js";
-import ActivateStudentDialog from "@/components/ActivateStudentDialog";
+import ActivateStudentDialog, { type MembershipDiscount } from "@/components/ActivateStudentDialog";
 import PaymentMethods from "@/components/PaymentMethods";
 import PaymentHistory from "@/components/PaymentHistory";
 import WaiverBadge from "@/components/WaiverBadge";
@@ -362,7 +362,7 @@ export default function StudentDetail() {
   });
 
   const createCheckoutSessionMutation = useMutation({
-    mutationFn: async ({ planId, billingStartDate }: { planId: string; billingStartDate?: string }) => {
+    mutationFn: async ({ planId, billingStartDate, discount }: { planId: string; billingStartDate?: string; discount?: MembershipDiscount }) => {
       if (!id) throw new Error("Student ID is missing");
       console.log("Creating checkout session:", { studentId: id, planId, billingStartDate });
 
@@ -385,6 +385,7 @@ export default function StudentDetail() {
             planId,
             organizationId: organization.id,
             billingStartDate,
+            discount,
           }),
         }
       );
@@ -437,7 +438,7 @@ export default function StudentDetail() {
   });
 
   const chargeStudentMutation = useMutation({
-    mutationFn: async ({ planId, paymentMethodId, billingStartDate }: { planId: string; paymentMethodId: string; billingStartDate?: string }) => {
+    mutationFn: async ({ planId, paymentMethodId, billingStartDate, discount }: { planId: string; paymentMethodId: string; billingStartDate?: string; discount?: MembershipDiscount }) => {
       if (!id) throw new Error("Student ID is missing");
 
       const {
@@ -457,6 +458,7 @@ export default function StudentDetail() {
             planId,
             paymentMethodId,
             billingStartDate,
+            discount,
           }),
         }
       );
@@ -492,7 +494,7 @@ export default function StudentDetail() {
     },
   });
 
-  const handleUpdateMembership = (paymentMethodId?: string, billingStartDate?: string) => {
+  const handleUpdateMembership = (paymentMethodId?: string, billingStartDate?: string, discount?: MembershipDiscount) => {
     if (!selectedPlan) {
       toast.error("Please select a membership plan.");
       return;
@@ -507,9 +509,9 @@ export default function StudentDetail() {
     if (plan.price === "0" || plan.price === "0.00") {
       activateFreebieMutation.mutate(selectedPlan);
     } else if (paymentMethodId) {
-      chargeStudentMutation.mutate({ planId: selectedPlan, paymentMethodId, billingStartDate });
+      chargeStudentMutation.mutate({ planId: selectedPlan, paymentMethodId, billingStartDate, discount });
     } else {
-      createCheckoutSessionMutation.mutate({ planId: selectedPlan, billingStartDate });
+      createCheckoutSessionMutation.mutate({ planId: selectedPlan, billingStartDate, discount });
     }
   };
 
@@ -1019,7 +1021,7 @@ export default function StudentDetail() {
         plans={membershipPlans || []}
         selectedPlanId={selectedPlan}
         onSelectPlan={setSelectedPlan}
-        onProceedToPayment={(pmId, startDate) => handleUpdateMembership(pmId, startDate)}
+        onProceedToPayment={(pmId, startDate, discount) => handleUpdateMembership(pmId, startDate, discount)}
         onActivateFreePlan={() => handleUpdateMembership()}
         isProcessing={createCheckoutSessionMutation.isPending || activateFreebieMutation.isPending || chargeStudentMutation.isPending}
         studentName={student.name || "Unknown Student"}
