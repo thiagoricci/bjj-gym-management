@@ -207,7 +207,24 @@ serve(async (req: Request) => {
     // Check if the subscription was created successfully
     const invoice = subscription.latest_invoice as Stripe.Invoice;
     const paymentIntent = invoice?.payment_intent as Stripe.PaymentIntent;
-    
+
+    // Resolve the PaymentIntent id robustly so the payment stays refundable.
+    // It can come back as an expanded object, a bare string id, or—on a brand-new
+    // customer's first invoice—be momentarily absent from the create response. In the
+    // last case a direct invoice retrieve reliably returns it.
+    let resolvedPaymentIntentId: string | null =
+      typeof invoice?.payment_intent === "string"
+        ? (invoice.payment_intent as string)
+        : paymentIntent?.id ?? null;
+    if (!resolvedPaymentIntentId && invoice?.id) {
+      try {
+        const freshInvoice = await stripe.invoices.retrieve(invoice.id, stripeOptions);
+        resolvedPaymentIntentId = (freshInvoice.payment_intent as string) || null;
+      } catch (e) {
+        console.error("Could not resolve PaymentIntent from invoice:", e);
+      }
+    }
+
     if (subscription.status === "active" || subscription.status === "trialing" ||
         (paymentIntent && paymentIntent.status === "succeeded")) {
       // Check if this is a trial plan (free with Daily or Weekly period)
@@ -255,7 +272,7 @@ serve(async (req: Request) => {
             amount: isScheduled ? planPrice : chargedNow,
             date: paymentDate,
             status: paymentStatus,
-            stripe_payment_intent_id: paymentIntent?.id ?? null,
+            stripe_payment_intent_id: resolvedPaymentIntentId,
           })
           .select();
 
