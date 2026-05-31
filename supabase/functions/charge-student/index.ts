@@ -189,7 +189,8 @@ serve(async (req: Request) => {
         couponParams.currency = "usd";
       }
       const coupon = await stripe.coupons.create(couponParams, stripeOptions);
-      subscriptionParams.discounts = [{ coupon: coupon.id }];
+      // On API version 2023-10-16, subscriptions take a single `coupon` (not a `discounts` array).
+      subscriptionParams.coupon = coupon.id;
     }
 
     // Delay first billing if a future start date was requested
