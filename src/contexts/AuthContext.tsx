@@ -144,7 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       link.href = organization.logo_url;
       link.type = undefined;
     } else {
-      link.href = "/favicon.svg";
+      link.href = "/favicon.ico";
       link.type = undefined;
     }
   }, [organization?.logo_url]);

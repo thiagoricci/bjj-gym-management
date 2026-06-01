@@ -26,6 +26,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { brandFixedStyles, useBrandLightMode } from "@/lib/brand-theme";
+import { useAuth } from "@/contexts/AuthContext";
 
 /* ─────────────────────────────────────────────────────────────
    Design tokens — light brand canvas (navy primary) with the BJJ
@@ -103,10 +104,13 @@ const beltDots = [BELT.white, BELT.blue, BELT.purple, BELT.brown, BELT.black];
 
 export default function Landing() {
   const navigate = useNavigate();
+  const { organization } = useAuth();
   const [loading, setLoading] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   useBrandLightMode();
+
+  const platformLogo = organization?.logo_url || "/logo.png";
 
   const handleSubscribe = async () => {
     setLoading(true);
@@ -316,9 +320,8 @@ export default function Landing() {
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
             className="flex items-center gap-3 group"
           >
-            <div className="relative h-9 w-9 rounded-md flex items-center justify-center" style={{ background: NAVY }}>
-              <span style={anton} className="text-[15px] tracking-tight text-white">JM</span>
-              {/* belt-spectrum underline */}
+            <div className="relative h-9 w-9 rounded-md overflow-hidden">
+              <img src={platformLogo} alt="JitzManager" className="h-full w-full object-contain" />
               <div className="absolute -bottom-0 left-0 right-0 h-[3px] flex rounded-b-md overflow-hidden">
                 {beltDots.map((c, i) => (
                   <div key={i} className="flex-1" style={{ background: c }} />
@@ -566,8 +569,8 @@ export default function Landing() {
                       className="w-[54px] shrink-0 py-3 flex flex-col items-center gap-1.5"
                       style={{ borderRight: `1px solid ${LINE}`, background: CARD }}
                     >
-                      <div className="h-7 w-7 rounded-md flex items-center justify-center mb-2" style={{ background: NAVY }}>
-                        <span style={anton} className="text-[11px] text-white">JM</span>
+                      <div className="h-7 w-7 rounded-md overflow-hidden mb-2">
+                        <img src={platformLogo} alt="" className="h-full w-full object-contain" />
                       </div>
                       {previewNav.map((item, i) => (
                         <div
@@ -999,8 +1002,8 @@ export default function Landing() {
         <div className="max-w-[1240px] mx-auto px-6 lg:pl-10">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-3">
-              <div className="relative h-8 w-8 rounded-md flex items-center justify-center" style={{ background: NAVY }}>
-                <span style={anton} className="text-[13px] text-white">JM</span>
+              <div className="relative h-8 w-8 rounded-md overflow-hidden">
+                <img src={platformLogo} alt="JitzManager" className="h-full w-full object-contain" />
                 <div className="absolute -bottom-0 left-0 right-0 h-[2.5px] flex rounded-b-md overflow-hidden">
                   {beltDots.map((c, i) => (
                     <div key={i} className="flex-1" style={{ background: c }} />

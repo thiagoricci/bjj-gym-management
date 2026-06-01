@@ -35,13 +35,11 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader className="p-4">
         <div className="px-2 flex items-center gap-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-          {organization?.logo_url && (
-            <img
-              src={organization.logo_url}
-              alt={organization?.name || "Logo"}
-              className="h-12 w-12 shrink-0 object-contain rounded group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10"
-            />
-          )}
+          <img
+            src={organization?.logo_url || "/logo.png"}
+            alt={organization?.name || "JitzManager"}
+            className="h-12 w-12 shrink-0 object-contain rounded group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10"
+          />
           <h1
             className="text-base font-bold leading-tight line-clamp-2 font-display group-data-[collapsible=icon]:hidden"
             title={organization?.name || "Academy Manager"}
