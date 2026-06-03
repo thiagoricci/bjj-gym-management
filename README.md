@@ -1,6 +1,6 @@
-# BJJ Academy Manager
+# Jitz Manager
 
-A comprehensive web-based management application designed for Brazilian Jiu-Jitsu (BJJ) academies. Streamline your academy operations with student management, attendance tracking, belt progression monitoring, membership management, and integrated payment processing.
+A comprehensive web-based management application designed for Brazilian Jiu-Jitsu (BJJ) academies. Streamline your academy operations with student management, attendance tracking, belt progression monitoring, membership management, integrated payment processing, student self-enrollment, waiver management, and staff management.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![React](https://img.shields.io/badge/React-18.3.1-61DAFB)
@@ -11,23 +11,30 @@ A comprehensive web-based management application designed for Brazilian Jiu-Jits
 
 ### Core Functionality
 
+- **Landing Page**: Public-facing marketing page for the platform
+- **Onboarding**: Guided setup flow for new academy registrations
 - **Dashboard**: Central hub displaying key metrics including total students, active attendance, belt promotions, and upcoming classes
-- **Student Management**: Complete student directory with detailed profiles, contact information, and belt tracking
+- **Student Management**: Complete student directory with detailed profiles, contact information, belt tracking, and CSV import
+- **Student Self-Enrollment**: Shareable signup links allowing students to enroll and pay online
 - **Attendance Tracking**: Smart check-in system that automatically detects current classes based on schedule and time
 - **Membership Management**: Comprehensive subscription handling with Stripe integration for payments
 - **Class Scheduling**: Admin interface to set up and edit weekly class schedules
 - **Belt Progression**: Visual tracking of student belt ranks (White → Blue → Purple → Brown → Black)
+- **Waiver Management**: Digital liability waivers with e-signature capture and tracking
 
 ### Advanced Features
 
 - **Multi-Tenant Architecture**: Strict data isolation between academies using Supabase Row Level Security
-- **Payment Processing**: Full Stripe integration for membership subscriptions and one-time payments
+- **Payment Processing**: Full Stripe integration for membership subscriptions, one-time charges, and refunds
 - **Student Import**: Bulk import students via CSV files
 - **Payment History**: Complete transaction history for each student
+- **Staff Management**: Invite and manage staff members with role-based access
 - **Platform Administration**: Admin dashboard for platform owners to manage registered gyms
+- **Custom Branding**: Customizable academy branding, logo uploads, and theme/appearance settings
 - **Responsive Design**: Mobile-friendly interface for on-the-go management
 - **Timezone Support**: Accurate date/time displays based on organization's timezone
 - **Real-time Updates**: Live attendance tracking and status updates
+- **Help Center & Documentation**: In-app help and documentation resources
 
 ## 🛠️ Tech Stack
 
@@ -72,8 +79,8 @@ Before you begin, ensure you have the following installed:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/bjj-academy-manager.git
-cd bjj-academy-manager
+git clone https://github.com/yourusername/jitz-manager.git
+cd jitz-manager
 ```
 
 ### 2. Install Dependencies
