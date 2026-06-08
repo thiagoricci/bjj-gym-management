@@ -7,7 +7,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Sun, Moon, Monitor } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Sun, Moon, Monitor, Save } from "lucide-react";
+import { toast } from "sonner";
 
 export default function AppearanceCard() {
   const { theme, mode, setThemeById, setMode } = useTheme();
@@ -87,6 +89,15 @@ export default function AppearanceCard() {
               );
             })}
           </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            onClick={() => toast.success("Appearance preferences saved")}
+          >
+            <Save className="mr-2 h-4 w-4" />
+            Save Preferences
+          </Button>
         </div>
       </CardContent>
     </Card>

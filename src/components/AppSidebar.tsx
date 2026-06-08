@@ -11,11 +11,17 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarSeparator,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
 export function AppSidebar() {
   const { organization, isAdmin, can } = useAuth();
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const handleNavClick = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   const mainItems = [
     { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -63,6 +69,7 @@ export function AppSidebar() {
                   <NavLink
                     to={item.url}
                     end
+                    onClick={handleNavClick}
                     className={cn(
                       "flex items-center rounded-md p-2 h-9",
                       "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
@@ -89,6 +96,7 @@ export function AppSidebar() {
                   <NavLink
                     to={item.url}
                     end
+                    onClick={handleNavClick}
                     className={cn(
                       "flex items-center rounded-md p-2 h-9",
                       "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",

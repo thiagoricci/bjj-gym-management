@@ -483,6 +483,7 @@ export default function Students() {
       )}
 
       <AlertDialog
+        open={!!studentToDelete}
         onOpenChange={(open) => !open && setStudentToDelete(null)}
       >
         <AlertDialogContent>

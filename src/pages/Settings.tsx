@@ -165,7 +165,6 @@ export default function Settings() {
             <SelectContent>
               <SelectItem value="general">General</SelectItem>
               <SelectItem value="appearance">Appearance</SelectItem>
-              <SelectItem value="payments">Payments</SelectItem>
               <SelectItem value="waiver">Waiver</SelectItem>
               <SelectItem value="staff">Staff</SelectItem>
               <SelectItem value="billing">Billing</SelectItem>
@@ -176,7 +175,6 @@ export default function Settings() {
         <TabsList className="hidden md:flex w-full justify-start overflow-x-auto">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="waiver">Waiver</TabsTrigger>
           <TabsTrigger value="staff">Staff</TabsTrigger>
           <TabsTrigger value="billing">Billing</TabsTrigger>
@@ -315,15 +313,13 @@ export default function Settings() {
             </CardContent>
           </Card>
 
+          <StripeConnectCard />
+
           <DangerZoneCard />
         </TabsContent>
 
         <TabsContent value="appearance">
           <AppearanceCard />
-        </TabsContent>
-
-        <TabsContent value="payments">
-          <StripeConnectCard />
         </TabsContent>
 
         <TabsContent value="waiver">
