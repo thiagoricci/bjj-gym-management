@@ -286,6 +286,12 @@ export default function Landing() {
   ];
 
   return (
+    <>
+    <Seo
+      title="JitzManager — BJJ Academy Management | Student Tracking & Payments"
+      description="The all-in-one management platform for Brazilian Jiu-Jitsu academies. Track student attendance, manage memberships, process payments, and monitor belt promotions."
+      path="/"
+    />
     <div
       className="min-h-screen relative overflow-x-clip"
       style={{ ...brandFixedStyles, background: PAGE, color: TEXT, ...body }}
@@ -1051,5 +1057,6 @@ export default function Landing() {
         </div>
       </footer>
     </div>
+    </>
   );
 }

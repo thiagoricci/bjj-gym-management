@@ -59,6 +59,8 @@ export default function EnrollSuccess() {
   }, [sessionId, organizationId]);
 
   return (
+    <>
+    <Seo title="Enrollment Complete" />
     <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4">
       <Card className="w-full max-w-md text-center">
         <CardHeader className="space-y-3">
@@ -107,5 +109,6 @@ export default function EnrollSuccess() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }

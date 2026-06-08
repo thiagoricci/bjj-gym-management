@@ -116,6 +116,8 @@ export default function SignUp() {
   }
 
   return (
+    <>
+    <Seo title="Sign Up" description="Create your JitzManager account and start managing your BJJ academy." path="/signup" />
     <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
@@ -167,5 +169,6 @@ export default function SignUp() {
         </CardFooter>
       </Card>
     </div>
+    </>
   );
 }

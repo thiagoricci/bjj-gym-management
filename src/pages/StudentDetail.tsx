@@ -792,6 +792,8 @@ export default function StudentDetail() {
   }
 
   return (
+    <>
+    <Seo title="Student Details" />
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
@@ -1178,5 +1180,6 @@ export default function StudentDetail() {
         </DialogContent>
       </Dialog>
     </div>
+    </>
   );
 }

@@ -194,6 +194,8 @@ export default function Students() {
   }
 
   return (
+    <>
+    <Seo title="Students" />
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-border/60">
         <div>
@@ -479,5 +481,6 @@ export default function Students() {
         onImport={(students) => importStudentsMutation.mutate(students)}
       />
     </div>
+    </>
   );
 }

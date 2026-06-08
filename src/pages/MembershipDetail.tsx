@@ -102,6 +102,8 @@ export default function MembershipDetail() {
   }
 
   return (
+    <>
+    <Seo title="Membership Details" />
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
@@ -250,5 +252,6 @@ export default function MembershipDetail() {
         </Table>
       </div>
     </div>
+    </>
   );
 }

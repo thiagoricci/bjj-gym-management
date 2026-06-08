@@ -125,6 +125,8 @@ export default function PastDue() {
   ).size;
 
   return (
+    <>
+    <Seo title="Past Due Payments" />
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-bold tracking-tight text-foreground">Past Due</h2>
@@ -255,5 +257,6 @@ export default function PastDue() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }

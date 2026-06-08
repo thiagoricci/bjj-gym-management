@@ -109,6 +109,8 @@ export default function AddStudent() {
   };
 
   return (
+    <>
+    <Seo title="Add Student" />
     <div className="max-w-lg mx-auto">
       <div className="mb-6">
         <h2 className="text-3xl font-bold tracking-tight text-foreground">
@@ -220,5 +222,6 @@ export default function AddStudent() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }

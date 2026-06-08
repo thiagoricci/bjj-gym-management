@@ -107,6 +107,8 @@ export default function Onboarding() {
   }
 
   return (
+    <>
+    <Seo title="Set Up Your Academy" />
     <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
@@ -134,5 +136,6 @@ export default function Onboarding() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }

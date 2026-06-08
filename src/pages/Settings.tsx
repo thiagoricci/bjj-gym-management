@@ -146,6 +146,8 @@ export default function Settings() {
   }
 
   return (
+    <>
+    <Seo title="Settings" />
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
@@ -341,6 +343,7 @@ export default function Settings() {
         </TabsContent>
       </Tabs>
     </div>
+    </>
   );
 }
 
@@ -422,15 +425,19 @@ function DangerZoneCard() {
         },
       });
 
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (error) {
+        const msg = (data as Record<string, string>)?.details || (data as Record<string, string>)?.error || error.message || "Failed to delete account";
+        throw new Error(msg);
+      }
+      if ((data as Record<string, string>)?.error) throw new Error((data as Record<string, string>).details || (data as Record<string, string>).error);
 
       toast.success("Account deleted successfully");
       await signOut();
       navigate("/");
-    } catch (error) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to delete account";
       console.error("Error deleting account:", error);
-      toast.error(error.message || "Failed to delete account");
+      toast.error(message);
       setDeleting(false);
     }
   };

@@ -7,6 +7,8 @@ export default function Waiver() {
   const { token } = useParams();
 
   return (
+    <>
+    <Seo title="Sign Waiver" />
     <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4 py-10">
       <Card className="w-full max-w-2xl">
         <CardContent className="pt-6">
@@ -14,5 +16,6 @@ export default function Waiver() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }

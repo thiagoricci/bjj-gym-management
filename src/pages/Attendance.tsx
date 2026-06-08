@@ -324,6 +324,8 @@ export default function Attendance() {
   }
 
   return (
+    <>
+    <Seo title="Attendance" />
     <div className="space-y-6 h-[calc(100vh-4rem)] flex flex-col">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between shrink-0">
         <div>
@@ -545,5 +547,6 @@ export default function Attendance() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </>
   );
 }

@@ -46,6 +46,8 @@ const AdminLogin = () => {
   };
 
   return (
+    <>
+    <Seo title="Admin Login" />
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
@@ -84,6 +86,7 @@ const AdminLogin = () => {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 };
 

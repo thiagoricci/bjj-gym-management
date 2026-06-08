@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.86.0";
-import Stripe from "https://esm.sh/stripe@14.21.0";
+import Stripe from "https://esm.sh/stripe@12.3.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
 serve(async (req: Request) => {
@@ -94,7 +94,33 @@ serve(async (req: Request) => {
         console.log("Stripe subscription cancelled.");
       } catch (stripeError) {
         console.error("Error cancelling Stripe subscription:", stripeError);
-        // Proceed with data deletion even if Stripe fails, but log it.
+      }
+    }
+
+    // 1b. Disconnect Stripe Connect account if present
+    const { data: org, error: orgError } = await supabaseAdmin
+      .from("organizations")
+      .select("stripe_account_id")
+      .eq("id", organizationId)
+      .single();
+
+    if (orgError) {
+      console.error("Error fetching org for Stripe Connect:", orgError);
+    }
+
+    if (org?.stripe_account_id) {
+      console.log(`Disconnecting Stripe Connect account: ${org.stripe_account_id}`);
+      const clientId = Deno.env.get("STRIPE_CLIENT_ID");
+      if (clientId) {
+        try {
+          await stripe.oauth.deauthorize({
+            client_id: clientId,
+            stripe_user_id: org.stripe_account_id,
+          });
+          console.log("Stripe Connect account deauthorized.");
+        } catch (deauthError) {
+          console.error("Stripe deauthorize error (non-fatal):", deauthError);
+        }
       }
     }
 

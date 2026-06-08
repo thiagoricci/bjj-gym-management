@@ -140,6 +140,8 @@ export default function EditStudent() {
   }
 
   return (
+    <>
+    <Seo title="Edit Student" />
     <div className="max-w-lg mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -283,5 +285,6 @@ export default function EditStudent() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </>
   );
 }

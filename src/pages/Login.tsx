@@ -60,6 +60,8 @@ export default function Login() {
   };
 
   return (
+    <>
+    <Seo title="Log In" description="Log in to your JitzManager BJJ academy account." path="/login" />
     <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4" style={brandFixedStyles}>
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
@@ -126,5 +128,6 @@ export default function Login() {
         </CardFooter>
       </Card>
     </div>
+    </>
   );
 }

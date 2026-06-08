@@ -117,6 +117,8 @@ export default function StripeConnectCallback() {
   };
 
   return (
+    <>
+    <Seo title="Stripe Connect" />
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
@@ -186,5 +188,6 @@ export default function StripeConnectCallback() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }

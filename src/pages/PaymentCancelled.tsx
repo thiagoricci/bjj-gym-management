@@ -12,9 +12,12 @@ export default function PaymentCancelled() {
   }, [navigate]);
 
   return (
+    <>
+    <Seo title="Payment Cancelled" />
     <div className="flex flex-col items-center justify-center h-screen">
       <h1 className="mt-4 text-2xl font-bold">Payment Cancelled</h1>
       <p className="text-muted-foreground">Redirecting to the students page...</p>
     </div>
+    </>
   );
 }

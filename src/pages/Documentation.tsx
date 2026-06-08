@@ -13,6 +13,8 @@ export default function Documentation() {
   const navigate = useNavigate();
 
   return (
+    <>
+    <Seo title="Documentation" description="Learn how to set up and use JitzManager for your Brazilian Jiu-Jitsu academy." path="/documentation" />
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-sm">
@@ -170,5 +172,6 @@ export default function Documentation() {
         </div>
       </footer>
     </div>
+    </>
   );
 }

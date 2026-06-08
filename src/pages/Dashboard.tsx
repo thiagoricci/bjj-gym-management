@@ -132,6 +132,8 @@ import { Card, CardContent } from "@/components/ui/card";
   const inactiveStudents = students?.filter(s => s.membership_status === 'inactive') || [];
 
   return (
+    <>
+    <Seo title="Dashboard" />
     <div className="space-y-6">
       <div className="pb-4 border-b border-border/60">
         <h2 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h2>
@@ -203,5 +205,6 @@ import { Card, CardContent } from "@/components/ui/card";
         />
       </div>
     </div>
+    </>
   );
 }

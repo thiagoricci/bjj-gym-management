@@ -51,6 +51,8 @@ const quickStart = [
 
 export default function HelpCenter() {
   return (
+    <>
+    <Seo title="Help Center" description="Get help with JitzManager — guides, FAQs, and support resources for your BJJ academy." path="/help-center" />
     <div className="space-y-8 max-w-5xl mx-auto">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Help Center</h1>
@@ -436,5 +438,6 @@ export default function HelpCenter() {
         </Accordion>
       </div>
     </div>
+    </>
   );
 }

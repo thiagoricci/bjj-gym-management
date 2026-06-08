@@ -60,6 +60,8 @@ export default function ResetPassword() {
   };
 
   return (
+    <>
+    <Seo title="Reset Password" />
     <div className="min-h-screen flex items-center justify-center bg-muted/50 px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
@@ -101,5 +103,6 @@ export default function ResetPassword() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }
