@@ -320,7 +320,7 @@ export default function Landing() {
             onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
             className="flex items-center gap-3 group"
           >
-            <div className="relative h-9 w-9 rounded-md overflow-hidden">
+            <div className="relative h-9 w-9 rounded-xl overflow-hidden">
               <img src={platformLogo} alt="JitzManager" className="h-full w-full object-contain" />
               <div className="absolute -bottom-0 left-0 right-0 h-[3px] flex rounded-b-md overflow-hidden">
                 {beltDots.map((c, i) => (
@@ -569,7 +569,7 @@ export default function Landing() {
                       className="w-[54px] shrink-0 py-3 flex flex-col items-center gap-1.5"
                       style={{ borderRight: `1px solid ${LINE}`, background: CARD }}
                     >
-                      <div className="h-7 w-7 rounded-md overflow-hidden mb-2">
+                      <div className="h-7 w-7 rounded-xl overflow-hidden mb-2">
                         <img src={platformLogo} alt="" className="h-full w-full object-contain" />
                       </div>
                       {previewNav.map((item, i) => (
@@ -1002,7 +1002,7 @@ export default function Landing() {
         <div className="max-w-[1240px] mx-auto px-6 lg:pl-10">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-3">
-              <div className="relative h-8 w-8 rounded-md overflow-hidden">
+              <div className="relative h-8 w-8 rounded-xl overflow-hidden">
                 <img src={platformLogo} alt="JitzManager" className="h-full w-full object-contain" />
                 <div className="absolute -bottom-0 left-0 right-0 h-[2.5px] flex rounded-b-md overflow-hidden">
                   {beltDots.map((c, i) => (

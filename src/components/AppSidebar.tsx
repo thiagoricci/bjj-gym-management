@@ -44,7 +44,7 @@ export function AppSidebar() {
           <img
             src={organization?.logo_url || "/logo.png"}
             alt={organization?.name || "JitzManager"}
-            className="h-12 w-12 shrink-0 object-contain rounded group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10"
+            className="h-12 w-12 shrink-0 object-contain rounded-xl group-data-[collapsible=icon]:h-10 group-data-[collapsible=icon]:w-10"
           />
           <h1
             className="text-base font-bold leading-tight line-clamp-2 font-display group-data-[collapsible=icon]:hidden"
