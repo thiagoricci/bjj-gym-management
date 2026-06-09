@@ -447,9 +447,9 @@ function DangerZoneCard() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center justify-between rounded-lg border border-destructive/50 bg-destructive/10 p-4">
-          <div className="flex items-center gap-3">
-            <AlertTriangle className="h-6 w-6 text-destructive" />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+          <div className="flex items-start gap-3 flex-1">
+            <AlertTriangle className="h-6 w-6 text-destructive shrink-0 mt-0.5" />
             <div>
               <h3 className="font-semibold text-destructive">
                 Delete Account
@@ -462,7 +462,7 @@ function DangerZoneCard() {
           
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button variant="destructive" disabled={deleting}>
+              <Button variant="destructive" disabled={deleting} className="shrink-0 w-full sm:w-auto">
                 {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete Account"}
               </Button>
             </AlertDialogTrigger>

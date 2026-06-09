@@ -138,7 +138,7 @@ export default function PastDue() {
         </p>
       </div>
 
-      <div className="grid gap-3 md:gap-4 grid-cols-3">
+      <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-3">
         <StatCard
           title="Outstanding"
           value={`$${totalOutstanding.toFixed(2)}`}

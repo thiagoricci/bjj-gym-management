@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Seo } from "@/lib/seo";
 import { supabase } from "@/lib/supabase";
@@ -151,6 +151,15 @@ export default function Schedule() {
   const { user, organization } = useAuth();
   const queryClient = useQueryClient();
   const isMobile = useIsMobile();
+
+  const todayDayOfWeek = getDayOfWeekInTimezone(organization?.timezone);
+
+  useEffect(() => {
+    if (isMobile && selectedDay === null) {
+      setSelectedDay(todayDayOfWeek);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile, todayDayOfWeek]);
 
   const addForm = useForm<z.infer<typeof addFormSchema>>({
     resolver: zodResolver(addFormSchema),
@@ -319,8 +328,6 @@ export default function Schedule() {
   // Pixel offset of an hour's row top (a class's hours are contiguous, so no
   // gap ever falls inside a single block).
   const getHourTop = (hour: number): number => hourTop.get(hour) ?? 0;
-
-  const todayDayOfWeek = getDayOfWeekInTimezone(organization?.timezone);
 
   const schedulesByDay = useMemo(() => {
     const map: Record<number, ScheduleEntry[]> = {};
@@ -492,24 +499,28 @@ export default function Schedule() {
       {/* Mobile: Day selector + list view */}
       {isMobile && (
         <div className="space-y-3">
-          <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1">
+          <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
             {dayAbbrevs.map((day, i) => {
               const daySchedules = schedulesByDay[i] || [];
+              const isToday = i === todayDayOfWeek;
               return (
                 <button
                   key={i}
                   onClick={() => setSelectedDay(selectedDay === i ? null : i)}
                   className={cn(
-                    "flex flex-col items-center px-3 py-2 rounded-lg text-xs font-medium shrink-0 transition-colors",
+                    "flex flex-col items-center px-3 py-2 rounded-lg text-xs font-medium shrink-0 transition-colors min-w-[44px]",
                     selectedDay === i
-                      ? "bg-primary text-primary-foreground"
-                      : i === todayDayOfWeek
-                      ? "bg-primary/10 text-primary"
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : isToday
+                      ? "bg-primary/10 text-primary ring-1 ring-primary/40"
                       : "bg-muted text-muted-foreground hover:bg-muted/80",
-                    daySchedules.length > 0 && selectedDay !== i && "ring-1 ring-primary/30"
+                    daySchedules.length > 0 && selectedDay !== i && !isToday && "ring-1 ring-primary/20"
                   )}
                 >
-                  <span>{day}</span>
+                  <span className="uppercase tracking-wide">{day}</span>
+                  {isToday && selectedDay !== i && (
+                    <span className="text-[9px] font-semibold mt-0.5 leading-none">Today</span>
+                  )}
                   {daySchedules.length > 0 && (
                     <span className={cn(
                       "mt-0.5 h-1 w-1 rounded-full",
@@ -521,17 +532,23 @@ export default function Schedule() {
             })}
           </div>
 
-          {(selectedDay !== null ? schedulesByDay[selectedDay] || [] : schedules || []).length === 0 ? (
+          {selectedDay !== null && (
+            <p className="text-xs font-medium text-muted-foreground px-1">
+              {selectedDay === todayDayOfWeek ? "Today" : daysOfWeek[selectedDay]} &middot; {(schedulesByDay[selectedDay] || []).length} {((schedulesByDay[selectedDay] || []).length) === 1 ? "class" : "classes"}
+            </p>
+          )}
+
+          {(selectedDay !== null ? (schedulesByDay[selectedDay] || []) : (schedulesByDay[todayDayOfWeek] || [])).length === 0 ? (
             <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
               {selectedDay !== null
                 ? `No classes on ${daysOfWeek[selectedDay]}s.`
-                : "No classes scheduled yet. Add one to get started."}
+                : "No classes scheduled for today."}
             </div>
           ) : (
             <div className="space-y-2">
               {(selectedDay !== null
                 ? schedulesByDay[selectedDay] || []
-                : schedules || []
+                : schedulesByDay[todayDayOfWeek] || []
               ).map((schedule: ScheduleEntry) => {
                 const colorIndex = colorMap[schedule.name] ?? 0;
                 return (

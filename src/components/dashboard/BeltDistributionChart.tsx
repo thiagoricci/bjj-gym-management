@@ -62,7 +62,7 @@ export default function BeltDistributionChart() {
       <CardHeader>
         <CardTitle>Belt Distribution</CardTitle>
       </CardHeader>
-      <CardContent className="flex items-end justify-center min-h-[260px] pb-8">
+      <CardContent className="flex items-end justify-center min-h-[200px] md:min-h-[260px] pb-6 md:pb-8">
         <div className="flex flex-col gap-5 w-full">
           {chartData.map((b) => {
             const borderColor =

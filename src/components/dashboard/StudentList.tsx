@@ -65,24 +65,24 @@ export default function StudentList({
               {currentStudents.map((student, index) => (
                 <div
                   key={student.id || index}
-                  className="flex items-center justify-between rounded-lg border border-border p-4 transition-all hover:border-primary/50 hover:shadow-md cursor-pointer"
+                  className="flex items-center justify-between rounded-lg border border-border p-3 md:p-4 transition-all hover:border-primary/50 hover:shadow-md cursor-pointer"
                   onClick={() => navigate(`/student/${student.id}`)}
                 >
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3 md:gap-4">
                     <div className={cn(
-                      "flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold",
+                      "flex h-9 w-9 md:h-12 md:w-12 items-center justify-center rounded-full text-sm md:text-lg font-bold shrink-0",
                       getAvatarColor(student.name || "?")
                     )}>
                       {student.name?.charAt(0) || "?"}
                     </div>
-                    <div>
-                      <p className="font-medium text-foreground">{student.name || "Unknown Student"}</p>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="min-w-0">
+                      <p className="font-medium text-foreground text-sm md:text-base truncate">{student.name || "Unknown Student"}</p>
+                      <p className="text-xs md:text-sm text-muted-foreground">
                         {student.status === 'trial' ? 'Started' : student.status === 'none' || !student.status ? 'Status: None' : 'Joined'} {formatDate(student.join_date, organization?.timezone)}
                       </p>
                     </div>
                   </div>
-                  <BeltBadge rank={student.belt as BeltRank} />
+                  <BeltBadge rank={student.belt as BeltRank} className="hidden sm:block" />
                 </div>
               ))}
 

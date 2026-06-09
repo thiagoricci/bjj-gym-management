@@ -86,16 +86,16 @@ export default function PaymentSuccess() {
           navigate(`/student/${studentId}`);
         }, 3000);
       }
-    }, 30000); // 30 second timeout
+    }, 30000);
 
     return () => clearTimeout(timeout);
-  }, [verificationStatus, navigate]);
+  }, [verificationStatus, navigate, studentId]);
 
   useEffect(() => {
     if (sessionId && studentId && verificationStatus === 'verifying') {
       verifyPaymentMutation.mutate({ sessionId, studentId });
     }
-  }, [sessionId, studentId, verificationStatus]);
+  }, [sessionId, studentId, verificationStatus, verifyPaymentMutation]);
 
   const renderContent = () => {
     switch (verificationStatus) {

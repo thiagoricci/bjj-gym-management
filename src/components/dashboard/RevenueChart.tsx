@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { subMonths, format, startOfMonth } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
+import { CHART_HEIGHT_MOBILE, CHART_RESPONSIVE_CLASS } from "@/components/dashboard/chart-constants";
 
 // Helper to generate the last 12 months
 const getLast12Months = () => {
@@ -60,7 +61,7 @@ export default function RevenueChart() {
       </CardHeader>
       <CardContent>
         {hasData ? (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={CHART_HEIGHT_MOBILE} className={CHART_RESPONSIVE_CLASS}>
             <BarChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />

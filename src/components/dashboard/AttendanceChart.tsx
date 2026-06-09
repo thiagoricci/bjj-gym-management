@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { subDays, format } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
+import { CHART_HEIGHT_MOBILE, CHART_RESPONSIVE_CLASS } from "@/components/dashboard/chart-constants";
 
 // Helper to generate the last 7 days
 const getLast7Days = () => {
@@ -51,7 +52,7 @@ export default function AttendanceChart() {
         <CardTitle>Weekly Attendance</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
+        <ResponsiveContainer width="100%" height={CHART_HEIGHT_MOBILE} className={CHART_RESPONSIVE_CLASS}>
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="day" />

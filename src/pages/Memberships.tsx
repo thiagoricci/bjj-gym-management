@@ -284,7 +284,7 @@ export default function Memberships() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 md:gap-4 grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Monthly Revenue"
           value={formatMoney(totalRevenue)}
