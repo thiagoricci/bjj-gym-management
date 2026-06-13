@@ -1,7 +1,5 @@
 project_id = "ttaebhlbialxxsmgvreb"
 
-# Invoked by pg_cron (no end-user JWT). The function authorizes callers itself by
-# checking the service-role key in the Authorization header.
 # Invoked by Stripe webhooks. Stripe sends no Supabase JWT (only
 # Stripe-Signature), so JWT verification must be off or the gateway returns 401
 # for every delivery. The function authenticates the request itself by verifying
@@ -9,5 +7,7 @@ project_id = "ttaebhlbialxxsmgvreb"
 [functions.stripe-webhook]
 verify_jwt = false
 
+# Invoked by pg_cron (no end-user JWT). The function authorizes callers itself by
+# checking the service-role key in the Authorization header.
 [functions.process-dunning]
 verify_jwt = false
